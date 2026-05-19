@@ -182,18 +182,28 @@ exports.login = async (req, res) => {
   }
 };
 
-// Fetch all approved, live drivers within the active 5-minute threshold
+// Fetch all approved, logged-in drivers for mapping
 exports.getLiveDrivers = async (req, res) => {
   try {
     const db = require('../config/db'); // Dynamically require database configuration securely
 
     const query = `
-      SELECT dl.driver_id AS id, dl.latitude, dl.longitude, d.full_name AS "fullName", d.van_image_url AS "vanImageUrl", d.vehicle_type AS "vehicleType"
+      SELECT 
+        dl.driver_id AS id, 
+        dl.latitude, 
+        dl.longitude, 
+        dl.is_live AS "isLive",
+        d.full_name AS "fullName", 
+        d.mobile_number AS "phoneNumber", 
+        d.company_name AS "companyName", 
+        d.services_offered AS "services", 
+        d.profile_image_url AS "profileImageUrl", 
+        d.van_image_url AS "vanImageUrl", 
+        d.vehicle_type AS "vehicleType"
       FROM driver_locations dl
       JOIN drivers d ON dl.driver_id = d.id
-      WHERE dl.is_live = true 
-        AND d.is_approved = true
-        AND dl.last_active > NOW() - INTERVAL '5 minutes';
+      WHERE dl.is_logged_in = true 
+        AND d.is_approved = true;
     `;
 
     const result = await db.query(query);
@@ -270,6 +280,40 @@ exports.updateProfile = async (req, res) => {
     return res.status(500).json({
       status: 'error',
       message: 'Internal server error while updating profile.',
+    });
+  }
+};
+
+// Securely log out and mark driver as logged out/offline
+exports.logout = async (req, res) => {
+  try {
+    const driverId = req.driver.id;
+    const db = require('../config/db');
+
+    // Update driver_locations table to set is_logged_in and is_live to false
+    await db.query(
+      `UPDATE driver_locations 
+       SET is_logged_in = false, is_live = false, last_active = NOW() 
+       WHERE driver_id = $1`,
+      [driverId]
+    );
+
+    // Broadcast that this driver is logged out (remove completely from maps)
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('driver_logged_out', { driverId });
+    }
+
+    return res.status(200).json({
+      status: 'success',
+      message: 'Driver logged out successfully and removed from map.',
+    });
+
+  } catch (error) {
+    console.error('Error inside authController.logout:', error);
+    return res.status(500).json({
+      status: 'error',
+      message: 'Internal server error while logging out.',
     });
   }
 };

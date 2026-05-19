@@ -73,12 +73,25 @@ class _LiveRadarMarkerState extends State<LiveRadarMarker>
                 ),
               ),
             ),
-            // Solid inner circle
-            const Icon(Icons.circle, color: Colors.white, size: 26),
-            const Icon(
-              Icons.circle,
-              color: Color(0xFF2E7D32), // Vibrant successGreen match
-              size: 16,
+            // White circle background with green van icon
+            Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black26,
+                    blurRadius: 4,
+                    offset: Offset(0, 1),
+                  ),
+                ],
+              ),
+              padding: const EdgeInsets.all(4),
+              child: const Icon(
+                Icons.local_shipping,
+                color: Color(0xFF2E7D32), // Success green match
+                size: 20,
+              ),
             ),
           ],
         );

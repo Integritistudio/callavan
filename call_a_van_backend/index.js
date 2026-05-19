@@ -37,6 +37,9 @@ app.get('/', (req, res) => {
 // Bind auth routes under /api/drivers prefix
 app.use('/api/drivers', authRoutes);
 
+// Bind io instance to app so express controllers can access it
+app.set('io', io);
+
 // WebSocket Real-Time Tracking Core Hub
 io.on('connection', (socket) => {
   console.log(`🔌 [WebSocket] Client connected: ${socket.id}`);
@@ -52,15 +55,16 @@ io.on('connection', (socket) => {
       // Store driverId in this socket session so we can auto-cleanup on disconnect
       socket.driverId = driverId;
 
-      // Upsert position to decoupled tracking table
+      // Upsert position to decoupled tracking table, setting both is_live and is_logged_in to true
       const upsertQuery = `
-        INSERT INTO driver_locations (driver_id, latitude, longitude, is_live, last_active)
-        VALUES ($1, $2, $3, true, NOW())
+        INSERT INTO driver_locations (driver_id, latitude, longitude, is_live, is_logged_in, last_active)
+        VALUES ($1, $2, $3, true, true, NOW())
         ON CONFLICT (driver_id) 
         DO UPDATE SET 
           latitude = EXCLUDED.latitude, 
           longitude = EXCLUDED.longitude, 
           is_live = true, 
+          is_logged_in = true,
           last_active = NOW();
       `;
       await db.query(upsertQuery, [driverId, latitude, longitude]);
@@ -69,7 +73,8 @@ io.on('connection', (socket) => {
       socket.broadcast.emit('driver_location_changed', {
         driverId,
         latitude,
-        longitude
+        longitude,
+        isLive: true
       });
 
     } catch (error) {
@@ -82,8 +87,11 @@ io.on('connection', (socket) => {
     console.log(`🔌 [WebSocket] Client disconnected: ${socket.id}`);
     if (socket.driverId) {
       try {
+        // Set is_live = false, but KEEP is_logged_in = true (so they show as offline on map)
         await db.query('UPDATE driver_locations SET is_live = false WHERE driver_id = $1', [socket.driverId]);
-        io.emit('driver_offline', { driverId: socket.driverId });
+        
+        // Broadcast that this driver went offline
+        io.emit('driver_status_changed', { driverId: socket.driverId, isLive: false });
         console.log(`🧹 [WebSocket] Driver ${socket.driverId} marked offline dynamically on disconnect.`);
       } catch (err) {
         console.error('❌ [WebSocket] Failed to mark driver offline on disconnect:', err);

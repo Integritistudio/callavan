@@ -58,6 +58,12 @@ const initializeDatabase = async () => {
       );
     `);
 
+    // Dynamic schema expansion: ensure is_logged_in column exists on startup
+    await db.query(`
+      ALTER TABLE driver_locations 
+      ADD COLUMN IF NOT EXISTS is_logged_in BOOLEAN DEFAULT false;
+    `);
+
     console.log('✅ [Database] Schema integrity checks verified.');
 
   } catch (err) {

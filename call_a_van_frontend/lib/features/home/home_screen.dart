@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'dart:ui' as ui;
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -52,6 +53,9 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isFetchingAddress = false;
   bool _showAddressTooltip = false;
   LatLng? _addressFetchLocation;
+  Map<String, dynamic>? _selectedDriver;
+  String? _selectedDriverAddress;
+  bool _isFetchingSelectedDriverAddress = false;
   OverlayEntry? _currentNotificationOverlay;
   Timer? _notificationTimer;
   final MapController _mapController = MapController();
@@ -249,6 +253,394 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _selectDriver(Map<String, dynamic> driver) async {
+    setState(() {
+      _selectedDriver = driver;
+      _selectedDriverAddress = "Loading address...";
+      _isFetchingSelectedDriverAddress = true;
+    });
+
+    final double? lat = double.tryParse(driver['latitude']?.toString() ?? '');
+    final double? lng = double.tryParse(driver['longitude']?.toString() ?? '');
+    if (lat != null && lng != null) {
+      try {
+        final placemarks = await geo.placemarkFromCoordinates(lat, lng);
+        if (placemarks.isNotEmpty) {
+          final p = placemarks.first;
+          final street = p.street ?? '';
+          final subLocality = p.subLocality ?? '';
+          final locality = p.locality ?? '';
+          List<String> parts = [];
+          if (street.isNotEmpty) parts.add(street);
+          if (subLocality.isNotEmpty) parts.add(subLocality);
+          if (locality.isNotEmpty) parts.add(locality);
+          if (mounted) {
+            setState(() {
+              _selectedDriverAddress = parts.join(', ');
+            });
+          }
+        } else {
+          if (mounted) {
+            setState(() {
+              _selectedDriverAddress = "${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}";
+            });
+          }
+        }
+      } catch (e) {
+        print("Driver Geocoding Error: $e");
+        if (mounted) {
+          setState(() {
+            _selectedDriverAddress = "${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}";
+          });
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isFetchingSelectedDriverAddress = false;
+          });
+        }
+      }
+    } else {
+      if (mounted) {
+        setState(() {
+          _selectedDriverAddress = "Unknown location";
+          _isFetchingSelectedDriverAddress = false;
+        });
+      }
+    }
+  }
+
+  Marker _buildSelectedDriverPopupMarker() {
+    if (_selectedDriver == null) {
+      return const Marker(
+        width: 0,
+        height: 0,
+        point: LatLng(0, 0),
+        child: SizedBox.shrink(),
+      );
+    }
+
+    final double? lat = double.tryParse(_selectedDriver!['latitude']?.toString() ?? '');
+    final double? lng = double.tryParse(_selectedDriver!['longitude']?.toString() ?? '');
+
+    if (lat == null || lng == null) {
+      return const Marker(
+        width: 0,
+        height: 0,
+        point: LatLng(0, 0),
+        child: SizedBox.shrink(),
+      );
+    }
+
+    // Parse services
+    List<String> servicesList = [];
+    if (_selectedDriver!['services'] != null) {
+      if (_selectedDriver!['services'] is List) {
+        servicesList = List<String>.from(_selectedDriver!['services']);
+      } else {
+        try {
+          final parsed = jsonDecode(_selectedDriver!['services'].toString());
+          if (parsed is List) {
+            servicesList = List<String>.from(parsed);
+          }
+        } catch (_) {}
+      }
+    }
+    if (servicesList.isEmpty) {
+      servicesList = ['General Van Services'];
+    }
+
+    // Clean email from display name
+    String displayName = _selectedDriver!['fullName'] ?? 'Driver Profile';
+    if (displayName.contains('@')) {
+      displayName = displayName.split('@').first;
+    }
+
+    // Avatar image resolution
+    String? profileImgUrl = _selectedDriver!['profileImageUrl'];
+    Widget avatarWidget;
+    if (profileImgUrl != null && profileImgUrl.isNotEmpty) {
+      String finalUrl = profileImgUrl;
+      if (finalUrl.startsWith('http://localhost:5000')) {
+        final String baseUrl = dotenv.env['BACKEND_URL'] ?? 'http://10.0.2.2:5000';
+        finalUrl = finalUrl.replaceFirst('http://localhost:5000', baseUrl);
+      }
+      avatarWidget = ClipOval(
+        child: Image.network(
+          finalUrl,
+          width: 40,
+          height: 40,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            return Container(
+              width: 40,
+              height: 40,
+              color: const Color(0xFF2E7D32).withOpacity(0.1),
+              child: const Icon(Icons.person, color: Color(0xFF2E7D32), size: 20),
+            );
+          },
+        ),
+      );
+    } else {
+      avatarWidget = Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: const Color(0xFF2E7D32).withOpacity(0.1),
+          shape: BoxShape.circle,
+        ),
+        child: const Icon(Icons.person, color: Color(0xFF2E7D32), size: 20),
+      );
+    }
+
+    return Marker(
+      width: 290.0,
+      height: 310.0,
+      point: LatLng(lat, lng),
+      alignment: Alignment.bottomCenter,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // White popup card container
+          Container(
+            width: 290.0,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.black26,
+                  blurRadius: 10,
+                  spreadRadius: 0.5,
+                  offset: Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Top Header Row
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Row(
+                          children: [
+                            avatarWidget,
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          displayName,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 13,
+                                            color: Colors.black87,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: (_selectedDriver!['isLive'] == true ||
+                                                  _selectedDriver!['isLive'] == 1 ||
+                                                  _selectedDriver!['isLive'] == 'true')
+                                              ? const Color(0xFFE8F5E9)
+                                              : const Color(0xFFEEEEEE),
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: Text(
+                                          (_selectedDriver!['isLive'] == true ||
+                                                  _selectedDriver!['isLive'] == 1 ||
+                                                  _selectedDriver!['isLive'] == 'true')
+                                              ? "Online"
+                                              : "Offline",
+                                          style: TextStyle(
+                                            color: (_selectedDriver!['isLive'] == true ||
+                                                    _selectedDriver!['isLive'] == 1 ||
+                                                    _selectedDriver!['isLive'] == 'true')
+                                                ? const Color(0xFF2E7D32)
+                                                : Colors.grey.shade700,
+                                            fontSize: 8,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 1),
+                                  Text(
+                                    _selectedDriver!['companyName'] ?? 'Independent Driver',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: Colors.grey.shade600,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _selectedDriver = null;
+                          });
+                        },
+                        child: const CircleAvatar(
+                          radius: 10,
+                          backgroundColor: Colors.black12,
+                          child: Icon(Icons.close, size: 10, color: Colors.black54),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1, thickness: 0.5),
+                // Phone & Location Details
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.phone, size: 12, color: Colors.blueAccent),
+                          const SizedBox(width: 6),
+                          Text(
+                            _selectedDriver!['phoneNumber'] ?? 'N/A',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.location_on, size: 12, color: Colors.redAccent),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              _selectedDriverAddress ?? "Loading address...",
+                              style: const TextStyle(
+                                fontSize: 10,
+                                color: Colors.black87,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1, thickness: 0.5),
+                // Services Offered List
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 6, 10, 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "Services Offered:",
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black54,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Column(
+                        children: servicesList.take(3).map((service) {
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 2),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.check_circle, size: 10, color: Color(0xFF2E7D32)),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    service,
+                                    style: const TextStyle(fontSize: 10, color: Colors.black87),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 8),
+                      // Call Button
+                      SizedBox(
+                        width: double.infinity,
+                        height: 34,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            // Call triggering functionality
+                          },
+                          icon: const Icon(Icons.call, color: Colors.white, size: 14),
+                          label: const Text(
+                            "Call a Driver",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF2E7D32),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Downward triangle indicator pointing to the van
+          ClipPath(
+            clipper: TriangleClipper(),
+            child: Container(
+              color: Colors.white,
+              width: 14,
+              height: 7,
+            ),
+          ),
+          // Small gap to float it cleanly above the van icon
+          const SizedBox(height: 25),
+        ],
+      ),
+    );
+  }
+
   Future<void> _enableUserLocation() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
@@ -257,7 +649,9 @@ class _HomeScreenState extends State<HomeScreen> {
       );
       if (!confirm) return;
 
-      await Geolocator.openLocationSettings();
+      if (!kIsWeb) {
+        await Geolocator.openLocationSettings();
+      }
       // Auto-reverify location service status when returning from Settings screen
       serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) return;
@@ -285,7 +679,9 @@ class _HomeScreenState extends State<HomeScreen> {
         "Location permissions permanently denied. Please enable them in settings.",
         isError: true,
       );
-      await Geolocator.openAppSettings();
+      if (!kIsWeb) {
+        await Geolocator.openAppSettings();
+      }
       return;
     }
 
@@ -423,6 +819,7 @@ class _HomeScreenState extends State<HomeScreen> {
             if (index != -1) {
               _onlineDriversList[index]['latitude'] = lat;
               _onlineDriversList[index]['longitude'] = lng;
+              _onlineDriversList[index]['isLive'] = data['isLive'] ?? true;
             } else {
               _fetchLiveDriversInitial();
             }
@@ -430,12 +827,37 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       });
 
-      // Listen for driver going offline
-      _socket?.on('driver_offline', (data) {
+      // Listen for driver status changes (toggle online/offline)
+      _socket?.on('driver_status_changed', (data) {
+        if (mounted) {
+          setState(() {
+            final int driverId = data['driverId'];
+            final bool isLive = data['isLive'] ?? false;
+            final index = _onlineDriversList.indexWhere(
+              (d) => d['id'] == driverId,
+            );
+            if (index != -1) {
+              _onlineDriversList[index]['isLive'] = isLive;
+              // If this is the currently selected driver, update their status live on the popup card as well
+              if (_selectedDriver != null && _selectedDriver!['id'] == driverId) {
+                _selectedDriver!['isLive'] = isLive;
+              }
+            } else {
+              _fetchLiveDriversInitial();
+            }
+          });
+        }
+      });
+
+      // Listen for driver logging out completely (remove from map)
+      _socket?.on('driver_logged_out', (data) {
         if (mounted) {
           setState(() {
             final int driverId = data['driverId'];
             _onlineDriversList.removeWhere((d) => d['id'] == driverId);
+            if (_selectedDriver != null && _selectedDriver!['id'] == driverId) {
+              _selectedDriver = null;
+            }
           });
         }
       });
@@ -520,6 +942,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // --- BACKGROUND SERVICE TOGGLE MONITOR ---
   void _registerLocationServiceStatusListener() {
+    if (kIsWeb) return;
     _serviceStatusSubscription?.cancel();
     _serviceStatusSubscription = Geolocator.getServiceStatusStream().listen((
       ServiceStatus status,
@@ -722,6 +1145,59 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _showDriverLogoutRequiredDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 24),
+              SizedBox(width: 10),
+              Text(
+                "Logout Required",
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+            ],
+          ),
+          content: const Text(
+            "To return to the home screen, you must first log out of your driver session.",
+            style: TextStyle(fontSize: 13, height: 1.4),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext); // Close dialog
+              },
+              child: const Text(
+                "Cancel",
+                style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(dialogContext); // Close dialog
+                _logoutDriver(); // Execute full logout workflow
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: const Text(
+                "Log Out",
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
 
 
   String _getCorrectImageUrl(String? rawUrl) {
@@ -760,6 +1236,22 @@ class _HomeScreenState extends State<HomeScreen> {
   void _logoutDriver() async {
     // 1. Safety turn offline first
     await _toggleLiveStatus(false);
+
+    // 2. Call backend logout endpoint to clear session and remove driver from map
+    if (_jwtToken != null) {
+      try {
+        final backendUrl = dotenv.env['BACKEND_URL'] ?? 'http://10.0.2.2:5000';
+        await http.post(
+          Uri.parse('$backendUrl/api/drivers/logout'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $_jwtToken',
+          },
+        );
+      } catch (e) {
+        print("Backend logout failed: $e");
+      }
+    }
 
     setState(() {
       _jwtToken = null;
@@ -868,8 +1360,29 @@ class _HomeScreenState extends State<HomeScreen> {
                 },
               ),
             IconButton(
-              icon: const Icon(Icons.menu, color: Colors.white),
-              onPressed: () {},
+              icon: const Icon(Icons.home_rounded, color: Colors.white),
+              tooltip: "Back to Home",
+              onPressed: () {
+                if (_jwtToken != null) {
+                  _showDriverLogoutRequiredDialog();
+                } else {
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (context) => const WelcomeScreen()),
+                    (route) => false,
+                  );
+                }
+              },
+            ),
+          ] else ...[
+            IconButton(
+              icon: const Icon(Icons.home_rounded, color: Colors.white),
+              tooltip: "Back to Home",
+              onPressed: () {
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (context) => const WelcomeScreen()),
+                  (route) => false,
+                );
+              },
             ),
           ],
         ],
@@ -909,6 +1422,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     initialZoom: 13.0,
                     minZoom: 3.5,
                     maxZoom: 18.0,
+                    onTap: (tapPosition, point) {
+                      setState(() {
+                        _selectedDriver = null;
+                        _showAddressTooltip = false;
+                      });
+                    },
                     cameraConstraint: CameraConstraint.contain(
                       bounds: LatLngBounds(
                         const LatLng(-85.05112878, -180.0),
@@ -937,8 +1456,6 @@ class _HomeScreenState extends State<HomeScreen> {
                           final double? lng = double.tryParse(
                             driver['longitude']?.toString() ?? '',
                           );
-                          final String fullName =
-                              driver['fullName'] ?? 'Active Driver';
 
                           if (lat == null ||
                               lng == null ||
@@ -964,43 +1481,40 @@ class _HomeScreenState extends State<HomeScreen> {
                             );
                           }
 
-                          return Marker(
-                            width: 65.0,
-                            height: 65.0,
+                           return Marker(
+                            width: 80.0,
+                            height: 80.0,
                             point: LatLng(lat, lng),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.9),
-                                    borderRadius: BorderRadius.circular(4),
-                                    border: Border.all(
-                                      color: AppColors.primaryBlue,
-                                      width: 0.5,
+                            child: GestureDetector(
+                              onTap: () {
+                                _selectDriver(driver);
+                              },
+                              child: (driver['isLive'] == true ||
+                                      driver['isLive'] == 1 ||
+                                      driver['isLive'] == 'true')
+                                  ? const LiveRadarMarker()
+                                  : Center(
+                                      child: Container(
+                                        width: 32,
+                                        height: 32,
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey.shade500,
+                                          shape: BoxShape.circle,
+                                          boxShadow: const [
+                                            BoxShadow(
+                                              color: Colors.black26,
+                                              blurRadius: 4,
+                                              offset: Offset(0, 2),
+                                            ),
+                                          ],
+                                        ),
+                                        child: const Icon(
+                                          Icons.airport_shuttle_rounded,
+                                          color: Colors.white,
+                                          size: 18,
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                  child: Text(
-                                    fullName,
-                                    style: const TextStyle(
-                                      fontSize: 8,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.black87,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                const Icon(
-                                  Icons.local_shipping,
-                                  color: AppColors.primaryBlue,
-                                  size: 26,
-                                ),
-                              ],
                             ),
                           );
                         }).toList(),
@@ -1179,6 +1693,8 @@ class _HomeScreenState extends State<HomeScreen> {
                               ],
                             ),
                           ),
+                        if (!widget.isDriverMode && _selectedDriver != null)
+                          _buildSelectedDriverPopupMarker(),
                       ],
                     ),
                   ],
@@ -1229,62 +1745,64 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
 
                 // --- BOTTOM-CENTER DYNAMIC CAPSULE PILL OVERLAY ---
-                Positioned(
-                  bottom: (widget.isDriverMode || _userCurrentLocation == null) ? 90 : 16,
-                  left: 0,
-                  right: 0,
-                  child: Center(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Colors.black12,
-                            blurRadius: 8,
-                            offset: Offset(0, 3),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: _isDriverLive
-                                  ? AppColors.successGreen
-                                  : Colors.orangeAccent,
-                              shape: BoxShape.circle,
+                if (_selectedDriver == null)
+                  Positioned(
+                    bottom: (widget.isDriverMode || _userCurrentLocation == null) ? 90 : 16,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Colors.black12,
+                              blurRadius: 8,
+                              offset: Offset(0, 3),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            widget.isDriverMode
-                                ? (_isDriverLive
-                                    ? "🟢 You are Online & Tracking"
-                                    : "${_onlineDriversList.length} Drivers Online Near You")
-                                : (_userCurrentLocation == null
-                                    ? "${_onlineDriversList.length} Drivers Online"
-                                    : "${_nearbyDriversCount.toString().padLeft(2, '0')} Drivers Online Near You"),
-                            style: const TextStyle(
-                              color: Colors.black87,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: _isDriverLive
+                                    ? AppColors.successGreen
+                                    : Colors.orangeAccent,
+                                shape: BoxShape.circle,
+                              ),
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 8),
+                            Text(
+                              widget.isDriverMode
+                                  ? (_isDriverLive
+                                      ? "🟢 You are Online & Tracking"
+                                      : "${_onlineDriversList.length} Drivers Online Near You")
+                                  : (_userCurrentLocation == null
+                                      ? "${_onlineDriversList.length} Drivers Online"
+                                      : "${_nearbyDriversCount.toString().padLeft(2, '0')} Drivers Online Near You"),
+                              style: const TextStyle(
+                                color: Colors.black87,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                                // ignore: unnecessary_const
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
 
-                // --- DRIVER BOTTOM BAR OVERLAY ---
+                // --- DRIVER BOTTOM BAR ---
                 if (widget.isDriverMode)
                   Positioned(
                     bottom: 0,
@@ -1293,32 +1811,32 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Container(
                       padding: const EdgeInsets.all(12),
                       color: AppColors.primaryBlue,
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: () {
-                                showDialog(
-                                  context: context,
-                                  builder: (context) => DriverSignupModal(
-                                    showNotification: _showNotification,
+                      child: _jwtToken == null
+                          ? Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton(
+                                    onPressed: () {
+                                      showDialog(
+                                        context: context,
+                                        builder: (context) => DriverSignupModal(
+                                          showNotification: _showNotification,
+                                        ),
+                                      );
+                                    },
+                                    style: OutlinedButton.styleFrom(
+                                      side: const BorderSide(color: Colors.white),
+                                    ),
+                                    child: const Text(
+                                      "Become a Driver",
+                                      style: TextStyle(color: Colors.white),
+                                    ),
                                   ),
-                                );
-                              },
-                              style: OutlinedButton.styleFrom(
-                                side: const BorderSide(color: Colors.white),
-                              ),
-                              child: const Text(
-                                "Become a Driver",
-                                style: TextStyle(color: Colors.white),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: _jwtToken == null
-                                  ? () {
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: ElevatedButton(
+                                    onPressed: () {
                                       showDialog(
                                         context: context,
                                         builder: (context) => DriverLoginModal(
@@ -1338,21 +1856,43 @@ class _HomeScreenState extends State<HomeScreen> {
                                           showNotification: _showNotification,
                                         ),
                                       );
-                                    }
-                                  : () => _toggleLiveStatus(!_isDriverLive),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: _isDriverLive
-                                    ? Colors.redAccent
-                                    : AppColors.successGreen,
-                              ),
-                              child: Text(
-                                _isDriverLive ? "Go Offline" : "Go Live",
-                                style: const TextStyle(color: Colors.white),
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.successGreen,
+                                    ),
+                                    child: const Text(
+                                      "Log In / Go Live",
+                                      style: TextStyle(color: Colors.white),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Center(
+                              child: SizedBox(
+                                width: double.infinity,
+                                height: 50,
+                                child: ElevatedButton(
+                                  onPressed: () => _toggleLiveStatus(!_isDriverLive),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: _isDriverLive
+                                        ? Colors.redAccent
+                                        : AppColors.successGreen,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    _isDriverLive ? "Go Offline" : "Go Live",
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
-                        ],
-                      ),
                     ),
                   )
                 // --- USER BOTTOM BAR OVERLAY ---

@@ -15,4 +15,7 @@ router.get('/live', authController.getLiveDrivers);
 // Securely update driver profile details (authenticated route)
 router.put('/profile', authMiddleware.protect, authController.updateProfile);
 
+// Securely log out and clear active location state (authenticated route)
+router.post('/logout', authMiddleware.protect, authController.logout);
+
 module.exports = router;
