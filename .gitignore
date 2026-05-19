@@ -1,0 +1,29 @@
+# Root IDE / Editor configurations
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Backend Folder Ignores
+call_a_van_backend/node_modules/
+call_a_van_backend/.env
+call_a_van_backend/npm-debug.log*
+call_a_van_backend/yarn-debug.log*
+call_a_van_backend/yarn-error.log*
+
+# Frontend Folder Ignores
+call_a_van_frontend/.env
+call_a_van_frontend/.dart_tool/
+call_a_van_frontend/.flutter-plugins-dependencies
+call_a_van_frontend/.pub-cache/
+call_a_van_frontend/.pub/
+call_a_van_frontend/build/
+call_a_van_frontend/coverage/
+call_a_van_frontend/android/app/debug/
+call_a_van_frontend/android/app/profile/
+call_a_van_frontend/android/app/release/
