@@ -20,6 +20,14 @@ import 'widgets/radar_animation_marker.dart';
 import 'widgets/driver_login_modal.dart';
 import 'widgets/driver_signup_modal.dart';
 import 'widgets/driver_profile_dialog.dart';
+import 'widgets/clippers.dart';
+import 'widgets/selected_driver_popup.dart';
+import 'widgets/driver_marker.dart';
+import 'widgets/user_location_marker.dart';
+import 'widgets/user_address_tooltip.dart';
+import 'widgets/dialogs.dart';
+import 'widgets/status_capsule.dart';
+import 'widgets/driver_bottom_bar.dart';
 
 class HomeScreen extends StatefulWidget {
   final bool isDriverMode;
@@ -373,409 +381,19 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Marker _buildSelectedDriverPopupMarker() {
-    if (_selectedDriver == null) {
-      return const Marker(
-        width: 0,
-        height: 0,
-        point: LatLng(0, 0),
-        child: SizedBox.shrink(),
-      );
-    }
-
-    final double? lat = double.tryParse(_selectedDriver!['latitude']?.toString() ?? '');
-    final double? lng = double.tryParse(_selectedDriver!['longitude']?.toString() ?? '');
-
-    if (lat == null || lng == null) {
-      return const Marker(
-        width: 0,
-        height: 0,
-        point: LatLng(0, 0),
-        child: SizedBox.shrink(),
-      );
-    }
-
-    // Parse services
-    List<String> servicesList = [];
-    if (_selectedDriver!['services'] != null) {
-      if (_selectedDriver!['services'] is List) {
-        servicesList = List<String>.from(_selectedDriver!['services']);
-      } else {
-        try {
-          final parsed = jsonDecode(_selectedDriver!['services'].toString());
-          if (parsed is List) {
-            servicesList = List<String>.from(parsed);
-          }
-        } catch (_) {}
-      }
-    }
-    if (servicesList.isEmpty) {
-      servicesList = ['General Van Services'];
-    }
-
-    // Clean email from display name
-    String displayName = _selectedDriver!['fullName'] ?? 'Driver Profile';
-    if (displayName.contains('@')) {
-      displayName = displayName.split('@').first;
-    }
-
-    // Avatar image resolution
-    String? profileImgUrl = _selectedDriver!['profileImageUrl'];
-    Widget avatarWidget;
-    if (profileImgUrl != null && profileImgUrl.isNotEmpty) {
-      String finalUrl = profileImgUrl;
-      if (finalUrl.startsWith('http://localhost:5000')) {
-        final String baseUrl = dotenv.env['BACKEND_URL'] ?? 'http://10.0.2.2:5000';
-        finalUrl = finalUrl.replaceFirst('http://localhost:5000', baseUrl);
-      }
-      avatarWidget = ClipOval(
-        child: Image.network(
-          finalUrl,
-          width: 40,
-          height: 40,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) {
-            return Container(
-              width: 40,
-              height: 40,
-              color: const Color(0xFF2E7D32).withOpacity(0.1),
-              child: const Icon(Icons.person, color: Color(0xFF2E7D32), size: 20),
-            );
-          },
-        ),
-      );
-    } else {
-      avatarWidget = Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: const Color(0xFF2E7D32).withOpacity(0.1),
-          shape: BoxShape.circle,
-        ),
-        child: const Icon(Icons.person, color: Color(0xFF2E7D32), size: 20),
-      );
-    }
-
-    // Calculate dynamic alignment based on pixel coordinates to avoid screen clipping
-    double alignX = 0.0;
-    double alignY = 1.0; // default alignment (above pin)
-    try {
-      final Offset screenPoint = _mapController.camera.latLngToScreenOffset(LatLng(lat, lng));
-      final double screenWidth = MediaQuery.of(context).size.width;
-      final double screenHeight = MediaQuery.of(context).size.height;
-
-      // 1. Vertical check (card height + indicator + padding is approx 280 for customer, 110 for driver)
-      final double boundaryHeight = widget.isDriverMode ? 130 : 300;
-      if (screenPoint.dy < boundaryHeight) {
-        alignY = -1.0; // Show below the pin
-      } else {
-        alignY = 1.0; // Show above the pin
-      }
-
-      // 2. Horizontal check (card width is 260)
-      const double halfWidth = 135.0;
-      if (screenPoint.dx < halfWidth) {
-        alignX = -0.6; // Shift right
-      } else if (screenWidth - screenPoint.dx < halfWidth) {
-        alignX = 0.6; // Shift left
-      }
-    } catch (_) {}
-
-    final bool showBelow = alignY == -1.0;
-    final double cardHeight = widget.isDriverMode ? 130.0 : 290.0;
-
-    return Marker(
-      width: 260.0,
-      height: cardHeight,
-      point: LatLng(lat, lng),
-      alignment: Alignment(alignX, alignY),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (showBelow) ...[
-            const SizedBox(height: 25),
-            ClipPath(
-              clipper: UpwardTriangleClipper(),
-              child: Container(
-                color: Colors.white,
-                width: 14,
-                height: 7,
-              ),
-            ),
-          ],
-          // White popup card container
-          Container(
-            width: 260.0,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: const [
-                BoxShadow(
-                  color: Colors.black26,
-                  blurRadius: 10,
-                  spreadRadius: 0.5,
-                  offset: Offset(0, 3),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Top Header Row
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Row(
-                          children: [
-                            avatarWidget,
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          displayName,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 13,
-                                            color: Colors.black87,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: (_selectedDriver!['isLive'] == true ||
-                                                  _selectedDriver!['isLive'] == 1 ||
-                                                  _selectedDriver!['isLive'] == 'true')
-                                              ? const Color(0xFFE8F5E9)
-                                              : const Color(0xFFEEEEEE),
-                                          borderRadius: BorderRadius.circular(4),
-                                        ),
-                                        child: Text(
-                                          (_selectedDriver!['isLive'] == true ||
-                                                  _selectedDriver!['isLive'] == 1 ||
-                                                  _selectedDriver!['isLive'] == 'true')
-                                              ? "Online"
-                                              : "Offline",
-                                          style: TextStyle(
-                                            color: (_selectedDriver!['isLive'] == true ||
-                                                    _selectedDriver!['isLive'] == 1 ||
-                                                    _selectedDriver!['isLive'] == 'true')
-                                                ? const Color(0xFF2E7D32)
-                                                : Colors.grey.shade700,
-                                            fontSize: 8,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 1),
-                                  Text(
-                                    _selectedDriver!['companyName'] ?? 'Independent Driver',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: Colors.grey.shade600,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            _selectedDriver = null;
-                          });
-                        },
-                        child: const CircleAvatar(
-                          radius: 10,
-                          backgroundColor: Colors.black12,
-                          child: Icon(Icons.close, size: 10, color: Colors.black54),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (widget.isDriverMode) ...[
-                  // Show simplified vehicle type for driver's peer view
-                  const Divider(height: 1, thickness: 0.5),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.local_shipping, size: 12, color: Colors.blueGrey),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            "Vehicle: ${_selectedDriver!['vehicleType'] ?? 'N/A'}",
-                            style: const TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ] else ...[
-                  const Divider(height: 1, thickness: 0.5),
-                  // Phone & Location Details
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        GestureDetector(
-                          onTap: () async {
-                            final String num = _selectedDriver!['phoneNumber'] ?? '';
-                            if (num.isNotEmpty && num != 'N/A') {
-                              await Clipboard.setData(ClipboardData(text: num));
-                              _showNotification("Phone number copied to clipboard: $num");
-                            }
-                          },
-                          child: Row(
-                            children: [
-                              const Icon(Icons.phone, size: 12, color: Colors.blueAccent),
-                              const SizedBox(width: 6),
-                              Text(
-                                _selectedDriver!['phoneNumber'] ?? 'N/A',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Icon(Icons.location_on, size: 12, color: Colors.redAccent),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                _selectedDriverAddress ?? "Loading address...",
-                                style: const TextStyle(
-                                  fontSize: 10,
-                                  color: Colors.black87,
-                                ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Divider(height: 1, thickness: 0.5),
-                  // Services Offered List
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(10, 6, 10, 10),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          "Services Offered:",
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black54,
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Column(
-                          children: servicesList.take(3).map((service) {
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 2),
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.check_circle, size: 10, color: Color(0xFF2E7D32)),
-                                  const SizedBox(width: 6),
-                                  Expanded(
-                                    child: Text(
-                                      service,
-                                      style: const TextStyle(fontSize: 10, color: Colors.black87),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }).toList(),
-                          ),
-                          const SizedBox(height: 8),
-                          // Call Button
-                          SizedBox(
-                            width: double.infinity,
-                            height: 34,
-                            child: ElevatedButton.icon(
-                              onPressed: () {
-                                _makePhoneCall(_selectedDriver!['phoneNumber'] ?? '');
-                              },
-                              icon: const Icon(Icons.call, color: Colors.white, size: 14),
-                              label: const Text(
-                                "Call a Driver",
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                              ),
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF2E7D32),
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          if (!showBelow) ...[
-            // Downward triangle indicator pointing to the van
-            ClipPath(
-              clipper: TriangleClipper(),
-              child: Container(
-                color: Colors.white,
-                width: 14,
-                height: 7,
-              ),
-            ),
-            // Small gap to float it cleanly above the van icon
-            const SizedBox(height: 25),
-          ],
-        ],
-      ),
+    return SelectedDriverPopupMarker(
+      driver: _selectedDriver!,
+      address: _selectedDriverAddress,
+      mapController: _mapController,
+      isDriverMode: widget.isDriverMode,
+      context: context,
+      onClose: () {
+        setState(() {
+          _selectedDriver = null;
+        });
+      },
+      onCall: _makePhoneCall,
+      getCorrectImageUrl: _getCorrectImageUrl,
     );
   }
 
@@ -971,6 +589,11 @@ class _HomeScreenState extends State<HomeScreen> {
             } else {
               _fetchLiveDriversInitial();
             }
+
+            if (_selectedDriver != null && _selectedDriver!['id'] == driverId) {
+              _selectedDriver!['latitude'] = lat;
+              _selectedDriver!['longitude'] = lng;
+            }
           });
         }
       });
@@ -1018,74 +641,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<bool> _showLocationPermissionExplanationDialog({
     required bool isHardwareDisabled,
   }) async {
-    final result = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Icon(
-              isHardwareDisabled ? Icons.location_off : Icons.location_on,
-              color: AppColors.primaryBlue,
-              size: 26,
-            ),
-            const SizedBox(width: 10),
-            const Text(
-              "Enable GPS Tracking",
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              isHardwareDisabled
-                  ? "Call-A-Van requires your phone's physical GPS hardware to be turned ON to list your vehicle on the live customer map."
-                  : "To connect with active customers nearby and update your van coordinate in real-time, please allow Call-A-Van location permission.",
-              style: const TextStyle(
-                fontSize: 13,
-                height: 1.4,
-                color: Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              "Your location stream is highly secure and is only broadcasted when you are online.",
-              style: TextStyle(fontSize: 11, color: Colors.grey),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text(
-              "Cancel",
-              style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryBlue,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            child: const Text(
-              "Enable GPS",
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
+    return HomeDialogs.showLocationPermissionExplanation(
+      context,
+      isHardwareDisabled: isHardwareDisabled,
     );
-    return result ?? false;
   }
 
   // --- BACKGROUND SERVICE TOGGLE MONITOR ---
@@ -1290,101 +849,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // --- INFO DIALOG: SHOW HOW TO APPROVE ---
   void _showApprovalGuidanceDialog(String email) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
-          children: [
-            Icon(Icons.hourglass_empty, color: Colors.orange, size: 24),
-            SizedBox(width: 10),
-            Text(
-              "Pending Approval",
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-            ),
-          ],
-        ),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              "Your driver registration request is safely logged!",
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            ),
-            SizedBox(height: 12),
-            Text(
-              "Once approved by the administrator, you will be able to log in and go live instantly.",
-              style: TextStyle(color: Colors.grey, fontSize: 12),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text(
-              "Got It",
-              style: TextStyle(
-                color: AppColors.primaryBlue,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+    HomeDialogs.showApprovalGuidance(context);
   }
 
   void _showDriverLogoutRequiredDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Row(
-            children: [
-              Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 24),
-              SizedBox(width: 10),
-              Text(
-                "Logout Required",
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-              ),
-            ],
-          ),
-          content: const Text(
-            "To return to the home screen, you must first log out of your driver session.",
-            style: TextStyle(fontSize: 13, height: 1.4),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext); // Close dialog
-              },
-              child: const Text(
-                "Cancel",
-                style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(dialogContext); // Close dialog
-                _logoutDriver(); // Execute full logout workflow
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.redAccent,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              child: const Text(
-                "Log Out",
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ],
-        );
-      },
+    HomeDialogs.showDriverLogoutRequired(
+      context,
+      onConfirm: _logoutDriver,
     );
   }
 
@@ -1639,75 +1110,23 @@ class _HomeScreenState extends State<HomeScreen> {
                     MarkerLayer(
                       markers: [
                         // Draw all other active live drivers
-                        ..._onlineDriversList.map((driver) {
-                          final double? lat = double.tryParse(
-                            driver['latitude']?.toString() ?? '',
-                          );
-                          final double? lng = double.tryParse(
-                            driver['longitude']?.toString() ?? '',
-                          );
-
-                          if (lat == null ||
-                              lng == null ||
-                              lat.isNaN ||
-                              lng.isNaN ||
-                              lat.isInfinite ||
-                              lng.isInfinite) {
-                            return const Marker(
-                              width: 0,
-                              height: 0,
-                              point: LatLng(0, 0),
-                              child: SizedBox.shrink(),
-                            );
-                          }
-
-                          // Don't draw ourselves here since we render a custom green live indicator
-                          if (driver['id'] == _loggedInDriver?['id']) {
-                            return const Marker(
-                              width: 0,
-                              height: 0,
-                              point: LatLng(0, 0),
-                              child: SizedBox.shrink(),
-                            );
-                          }
-
-                           return Marker(
-                            width: 80.0,
-                            height: 80.0,
-                            point: LatLng(lat, lng),
-                            child: GestureDetector(
-                              onTap: () {
-                                _selectDriver(driver);
-                              },
-                              child: (driver['isLive'] == true ||
-                                      driver['isLive'] == 1 ||
-                                      driver['isLive'] == 'true')
-                                  ? const LiveRadarMarker()
-                                  : Center(
-                                      child: Container(
-                                        width: 32,
-                                        height: 32,
-                                        decoration: BoxDecoration(
-                                          color: Colors.grey.shade500,
-                                          shape: BoxShape.circle,
-                                          boxShadow: const [
-                                            BoxShadow(
-                                              color: Colors.black26,
-                                              blurRadius: 4,
-                                              offset: Offset(0, 2),
-                                            ),
-                                          ],
-                                        ),
-                                        child: const Icon(
-                                          Icons.airport_shuttle_rounded,
-                                          color: Colors.white,
-                                          size: 18,
-                                        ),
-                                      ),
-                                    ),
-                            ),
-                          );
-                        }).toList(),
+                        ..._onlineDriversList
+                            .where((driver) => driver['id'] != _loggedInDriver?['id'])
+                            .map((driver) {
+                              try {
+                                return DriverMarker(
+                                  driver: driver,
+                                  onTap: () => _selectDriver(driver),
+                                );
+                              } catch (_) {
+                                return const Marker(
+                                  width: 0,
+                                  height: 0,
+                                  point: LatLng(0, 0),
+                                  child: SizedBox.shrink(),
+                                );
+                              }
+                            }),
 
                         // Render our distinct personal radar pulse green ring when live
                         if (_isDriverLive &&
@@ -1764,30 +1183,10 @@ class _HomeScreenState extends State<HomeScreen> {
                             width: 40.0,
                             height: 40.0,
                             point: _userCurrentLocation!,
-                            child: GestureDetector(
+                            child: UserLocationMarkerWidget(
                               onTap: () {
                                 _fetchUserAddress(_userCurrentLocation!);
                               },
-                              child: Stack(
-                                alignment: Alignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.circle,
-                                    color: Colors.blue.withOpacity(0.2),
-                                    size: 40,
-                                  ),
-                                  const Icon(
-                                    Icons.circle,
-                                    color: Colors.white,
-                                    size: 18,
-                                  ),
-                                  const Icon(
-                                    Icons.circle,
-                                    color: Colors.blue,
-                                    size: 12,
-                                  ),
-                                ],
-                              ),
                             ),
                           ),
                         if (!widget.isDriverMode &&
@@ -1802,85 +1201,13 @@ class _HomeScreenState extends State<HomeScreen> {
                             height: 80.0,
                             point: _userCurrentLocation!,
                             alignment: Alignment.topCenter,
-                            child: Stack(
-                              alignment: Alignment.bottomCenter,
-                              children: [
-                                Positioned(
-                                  bottom: 10,
-                                  child: Container(
-                                    width: 210,
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(8),
-                                      boxShadow: const [
-                                        BoxShadow(
-                                          color: Colors.black26,
-                                          blurRadius: 6,
-                                          offset: Offset(0, 2),
-                                        ),
-                                      ],
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        const Icon(
-                                          Icons.location_on,
-                                          color: Colors.blueAccent,
-                                          size: 16,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              const Text(
-                                                "Your Location",
-                                                style: TextStyle(
-                                                  fontSize: 8,
-                                                  color: Colors.grey,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 1),
-                                              Text(
-                                                _userAddress ?? "Loading address...",
-                                                maxLines: 2,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: const TextStyle(
-                                                  fontSize: 10,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Colors.black87,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        const SizedBox(width: 2),
-                                        GestureDetector(
-                                          onTap: () {
-                                            setState(() {
-                                              _showAddressTooltip = false;
-                                            });
-                                          },
-                                          child: const Icon(Icons.close, size: 14, color: Colors.grey),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                Positioned(
-                                  bottom: 4,
-                                  child: ClipPath(
-                                    clipper: TriangleClipper(),
-                                    child: Container(
-                                      color: Colors.white,
-                                      width: 12,
-                                      height: 6,
-                                    ),
-                                  ),
-                                ),
-                              ],
+                            child: UserAddressTooltip(
+                              address: _userAddress ?? "Loading address...",
+                              onClose: () {
+                                setState(() {
+                                  _showAddressTooltip = false;
+                                });
+                              },
                             ),
                           ),
                         if (_selectedDriver != null)
@@ -1941,61 +1268,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     left: 0,
                     right: 0,
                     child: Center(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Colors.black12,
-                              blurRadius: 8,
-                              offset: Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 8,
-                              height: 8,
-                              decoration: BoxDecoration(
-                                color: (widget.isDriverMode && _isDriverLive)
-                                    ? AppColors.successGreen
-                                    : Colors.orangeAccent,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              () {
-                                final int online = _onlineDriversList.where((d) =>
-                                    d['isLive'] == true || d['isLive'] == 1 || d['isLive'] == 'true').length;
-                                final int offline = _onlineDriversList.where((d) =>
-                                    d['isLive'] != true && d['isLive'] != 1 && d['isLive'] != 'true').length;
-
-                                if (widget.isDriverMode) {
-                                  if (_isDriverLive) {
-                                    return "You are Online & Tracking";
-                                  }
-                                  return "${online.toString().padLeft(2, '0')} Online | ${offline.toString().padLeft(2, '0')} Offline";
-                                } else {
-                                  return "${online.toString().padLeft(2, '0')} Online | ${offline.toString().padLeft(2, '0')} Offline";
-                                }
-                              }(),
-                              style: const TextStyle(
-                                color: Colors.black87,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                                // ignore: unnecessary_const
-                              ),
-                            ),
-                          ],
-                        ),
+                      child: StatusCapsule(
+                        isDriverMode: widget.isDriverMode,
+                        isDriverLive: _isDriverLive,
+                        onlineDriversList: _onlineDriversList,
                       ),
                     ),
                   ),
@@ -2006,91 +1282,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     bottom: 0,
                     left: 0,
                     right: 0,
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      color: AppColors.primaryBlue,
-                      child: _jwtToken == null
-                          ? Row(
-                              children: [
-                                Expanded(
-                                  child: OutlinedButton(
-                                    onPressed: () {
-                                      showDialog(
-                                        context: context,
-                                        builder: (context) => DriverSignupModal(
-                                          showNotification: _showNotification,
-                                        ),
-                                      );
-                                    },
-                                    style: OutlinedButton.styleFrom(
-                                      side: const BorderSide(color: Colors.white),
-                                    ),
-                                    child: const Text(
-                                      "Become a Driver",
-                                      style: TextStyle(color: Colors.white),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: ElevatedButton(
-                                    onPressed: () {
-                                      showDialog(
-                                        context: context,
-                                        builder: (context) => DriverLoginModal(
-                                          isDriverLive: _isDriverLive,
-                                          onLoginSuccess: _handleLoginSuccess,
-                                          onPendingApproval: (email) {
-                                            _showApprovalGuidanceDialog(email);
-                                          },
-                                          onSignUpPressed: () {
-                                            showDialog(
-                                              context: context,
-                                              builder: (context) => DriverSignupModal(
-                                                showNotification: _showNotification,
-                                              ),
-                                            );
-                                          },
-                                          showNotification: _showNotification,
-                                        ),
-                                      );
-                                    },
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: AppColors.successGreen,
-                                    ),
-                                    child: const Text(
-                                      "Log In / Go Live",
-                                      style: TextStyle(color: Colors.white),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            )
-                          : Center(
-                              child: SizedBox(
-                                width: double.infinity,
-                                height: 50,
-                                child: ElevatedButton(
-                                  onPressed: () => _toggleLiveStatus(!_isDriverLive),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: _isDriverLive
-                                        ? Colors.redAccent
-                                        : AppColors.successGreen,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    _isDriverLive ? "Go Offline" : "Go Live",
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
+                    child: DriverBottomBar(
+                      jwtToken: _jwtToken,
+                      isDriverLive: _isDriverLive,
+                      onLoginSuccess: _handleLoginSuccess,
+                      onPendingApproval: _showApprovalGuidanceDialog,
+                      showNotification: _showNotification,
+                      onToggleLiveStatus: _toggleLiveStatus,
                     ),
                   )
                 // --- USER BOTTOM BAR OVERLAY ---
@@ -2143,34 +1341,4 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-}
-
-class TriangleClipper extends CustomClipper<ui.Path> {
-  @override
-  ui.Path getClip(Size size) {
-    final path = ui.Path();
-    path.moveTo(0, 0);
-    path.lineTo(size.width, 0);
-    path.lineTo(size.width / 2, size.height);
-    path.close();
-    return path;
-  }
-
-  @override
-  bool shouldReclip(CustomClipper<ui.Path> oldClipper) => false;
-}
-
-class UpwardTriangleClipper extends CustomClipper<ui.Path> {
-  @override
-  ui.Path getClip(Size size) {
-    final path = ui.Path();
-    path.moveTo(size.width / 2, 0);
-    path.lineTo(size.width, size.height);
-    path.lineTo(0, size.height);
-    path.close();
-    return path;
-  }
-
-  @override
-  bool shouldReclip(CustomClipper<ui.Path> oldClipper) => false;
 }
