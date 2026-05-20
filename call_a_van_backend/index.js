@@ -82,6 +82,23 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Listen for driver manually going offline (without disconnecting socket)
+  socket.on('go_offline', async (data) => {
+    try {
+      const { driverId } = data;
+      if (!driverId) return;
+
+      // Update location table: set is_live = false, but keep is_logged_in = true
+      await db.query('UPDATE driver_locations SET is_live = false WHERE driver_id = $1', [driverId]);
+
+      // Broadcast status change
+      io.emit('driver_status_changed', { driverId, isLive: false });
+      console.log(`🧹 [WebSocket] Driver ${driverId} went offline manually.`);
+    } catch (error) {
+      console.error('❌ [WebSocket] Failed to process go_offline:', error);
+    }
+  });
+
   // Auto-cleanup on client disconnect (app close, lost cell reception, battery death)
   socket.on('disconnect', async () => {
     console.log(`🔌 [WebSocket] Client disconnected: ${socket.id}`);

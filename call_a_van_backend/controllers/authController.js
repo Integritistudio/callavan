@@ -182,7 +182,7 @@ exports.login = async (req, res) => {
   }
 };
 
-// Fetch all approved, logged-in drivers for mapping
+// Fetch all approved drivers for mapping
 exports.getLiveDrivers = async (req, res) => {
   try {
     const db = require('../config/db'); // Dynamically require database configuration securely
@@ -202,8 +202,7 @@ exports.getLiveDrivers = async (req, res) => {
         d.vehicle_type AS "vehicleType"
       FROM driver_locations dl
       JOIN drivers d ON dl.driver_id = d.id
-      WHERE dl.is_logged_in = true 
-        AND d.is_approved = true;
+      WHERE d.is_approved = true;
     `;
 
     const result = await db.query(query);
@@ -298,15 +297,15 @@ exports.logout = async (req, res) => {
       [driverId]
     );
 
-    // Broadcast that this driver is logged out (remove completely from maps)
+    // Broadcast that this driver went offline (rather than removing from map)
     const io = req.app.get('io');
     if (io) {
-      io.emit('driver_logged_out', { driverId });
+      io.emit('driver_status_changed', { driverId, isLive: false });
     }
 
     return res.status(200).json({
       status: 'success',
-      message: 'Driver logged out successfully and removed from map.',
+      message: 'Driver logged out successfully.',
     });
 
   } catch (error) {

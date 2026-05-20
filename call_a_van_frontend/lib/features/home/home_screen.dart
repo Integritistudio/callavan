@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:ui' as ui;
+import 'dart:math' as math;
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -67,9 +68,8 @@ class _HomeScreenState extends State<HomeScreen> {
     _loggedInDriver = widget.initialDriver;
     _fetchLiveDriversInitial();
     _registerLocationServiceStatusListener();
-    if (!widget.isDriverMode) {
-      _initializeWebSocketStream();
-    } else if (_jwtToken != null) {
+    _initializeWebSocketStream();
+    if (widget.isDriverMode && _jwtToken != null) {
       _isDriverLive = true;
       _toggleLiveStatus(true);
     }
@@ -177,9 +177,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   int get _nearbyDriversCount {
-    if (_userCurrentLocation == null) return _onlineDriversList.length;
+    final liveDrivers = _onlineDriversList.where((d) =>
+        d['isLive'] == true || d['isLive'] == 1 || d['isLive'] == 'true');
+    if (_userCurrentLocation == null) return liveDrivers.length;
     int count = 0;
-    for (var driver in _onlineDriversList) {
+    for (var driver in liveDrivers) {
       final double? lat = double.tryParse(driver['latitude']?.toString() ?? '');
       final double? lng = double.tryParse(driver['longitude']?.toString() ?? '');
       if (lat != null && lng != null && !lat.isNaN && !lng.isNaN) {
@@ -393,17 +395,56 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
+    // Calculate dynamic alignment based on pixel coordinates to avoid screen clipping
+    double alignX = 0.0;
+    double alignY = 1.0; // default alignment (above pin)
+    try {
+      final Offset screenPoint = _mapController.camera.latLngToScreenOffset(LatLng(lat, lng));
+      final double screenWidth = MediaQuery.of(context).size.width;
+      final double screenHeight = MediaQuery.of(context).size.height;
+
+      // 1. Vertical check (card height + indicator + padding is approx 280 for customer, 110 for driver)
+      final double boundaryHeight = widget.isDriverMode ? 130 : 300;
+      if (screenPoint.dy < boundaryHeight) {
+        alignY = -1.0; // Show below the pin
+      } else {
+        alignY = 1.0; // Show above the pin
+      }
+
+      // 2. Horizontal check (card width is 260)
+      const double halfWidth = 135.0;
+      if (screenPoint.dx < halfWidth) {
+        alignX = -0.6; // Shift right
+      } else if (screenWidth - screenPoint.dx < halfWidth) {
+        alignX = 0.6; // Shift left
+      }
+    } catch (_) {}
+
+    final bool showBelow = alignY == -1.0;
+    final double cardHeight = widget.isDriverMode ? 130.0 : 290.0;
+
     return Marker(
-      width: 290.0,
-      height: 310.0,
+      width: 260.0,
+      height: cardHeight,
       point: LatLng(lat, lng),
-      alignment: Alignment.bottomCenter,
+      alignment: Alignment(alignX, alignY),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (showBelow) ...[
+            const SizedBox(height: 25),
+            ClipPath(
+              clipper: UpwardTriangleClipper(),
+              child: Container(
+                color: Colors.white,
+                width: 14,
+                height: 7,
+              ),
+            ),
+          ],
           // White popup card container
           Container(
-            width: 290.0,
+            width: 260.0,
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(12),
@@ -512,130 +553,158 @@ class _HomeScreenState extends State<HomeScreen> {
                     ],
                   ),
                 ),
-                const Divider(height: 1, thickness: 0.5),
-                // Phone & Location Details
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.phone, size: 12, color: Colors.blueAccent),
-                          const SizedBox(width: 6),
-                          Text(
-                            _selectedDriver!['phoneNumber'] ?? 'N/A',
+                if (widget.isDriverMode) ...[
+                  // Show simplified vehicle type for driver's peer view
+                  const Divider(height: 1, thickness: 0.5),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.local_shipping, size: 12, color: Colors.blueGrey),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            "Vehicle: ${_selectedDriver!['vehicleType'] ?? 'N/A'}",
                             style: const TextStyle(
-                              fontSize: 11,
+                              fontSize: 10,
                               fontWeight: FontWeight.bold,
                               color: Colors.black87,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Icon(Icons.location_on, size: 12, color: Colors.redAccent),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              _selectedDriverAddress ?? "Loading address...",
+                        ),
+                      ],
+                    ),
+                  ),
+                ] else ...[
+                  const Divider(height: 1, thickness: 0.5),
+                  // Phone & Location Details
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.phone, size: 12, color: Colors.blueAccent),
+                            const SizedBox(width: 6),
+                            Text(
+                              _selectedDriver!['phoneNumber'] ?? 'N/A',
                               style: const TextStyle(
-                                fontSize: 10,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
                                 color: Colors.black87,
                               ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
                             ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const Divider(height: 1, thickness: 0.5),
-                // Services Offered List
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(10, 6, 10, 10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        "Services Offered:",
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black54,
+                          ],
                         ),
-                      ),
-                      const SizedBox(height: 3),
-                      Column(
-                        children: servicesList.take(3).map((service) {
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 2),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.check_circle, size: 10, color: Color(0xFF2E7D32)),
-                                const SizedBox(width: 6),
-                                Expanded(
-                                  child: Text(
-                                    service,
-                                    style: const TextStyle(fontSize: 10, color: Colors.black87),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
+                        const SizedBox(height: 4),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.location_on, size: 12, color: Colors.redAccent),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                _selectedDriverAddress ?? "Loading address...",
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.black87,
                                 ),
-                              ],
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
-                          );
-                        }).toList(),
-                      ),
-                      const SizedBox(height: 8),
-                      // Call Button
-                      SizedBox(
-                        width: double.infinity,
-                        height: 34,
-                        child: ElevatedButton.icon(
-                          onPressed: () {
-                            // Call triggering functionality
-                          },
-                          icon: const Icon(Icons.call, color: Colors.white, size: 14),
-                          label: const Text(
-                            "Call a Driver",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1, thickness: 0.5),
+                  // Services Offered List
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 6, 10, 10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          "Services Offered:",
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black54,
                           ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF2E7D32),
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(6),
+                        ),
+                        const SizedBox(height: 3),
+                        Column(
+                          children: servicesList.take(3).map((service) {
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 2),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.check_circle, size: 10, color: Color(0xFF2E7D32)),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      service,
+                                      style: const TextStyle(fontSize: 10, color: Colors.black87),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                        const SizedBox(height: 8),
+                        // Call Button
+                        SizedBox(
+                          width: double.infinity,
+                          height: 34,
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              // Call triggering functionality
+                            },
+                            icon: const Icon(Icons.call, color: Colors.white, size: 14),
+                            label: const Text(
+                              "Call a Driver",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF2E7D32),
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(6),
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ),
-          // Downward triangle indicator pointing to the van
-          ClipPath(
-            clipper: TriangleClipper(),
-            child: Container(
-              color: Colors.white,
-              width: 14,
-              height: 7,
+          if (!showBelow) ...[
+            // Downward triangle indicator pointing to the van
+            ClipPath(
+              clipper: TriangleClipper(),
+              child: Container(
+                color: Colors.white,
+                width: 14,
+                height: 7,
+              ),
             ),
-          ),
-          // Small gap to float it cleanly above the van icon
-          const SizedBox(height: 25),
+            // Small gap to float it cleanly above the van icon
+            const SizedBox(height: 25),
+          ],
         ],
       ),
     );
@@ -1022,6 +1091,37 @@ class _HomeScreenState extends State<HomeScreen> {
       // Subscribe to background status toggles
       _registerLocationServiceStatusListener();
 
+      if (mounted) {
+        setState(() {
+          _isDriverLive = true;
+        });
+      }
+
+      // Fetch and broadcast initial location asynchronously (non-blocking) to show online immediately
+      Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      ).then((position) {
+        final lat = position.latitude;
+        final lng = position.longitude;
+        if (!lat.isNaN && !lng.isNaN && !lat.isInfinite && !lng.isInfinite) {
+          if (mounted) {
+            setState(() {
+              _driverCurrentLocation = LatLng(lat, lng);
+            });
+            _mapController.move(LatLng(lat, lng), 14.5);
+          }
+          if (_socket != null && _socket!.connected) {
+            _socket!.emit('update_location', {
+              'driverId': _loggedInDriver?['id'],
+              'latitude': lat,
+              'longitude': lng,
+            });
+          }
+        }
+      }).catchError((e) {
+        print("⚠️ [GPS] Initial location fetch failed: $e");
+      });
+
       // 4. Subscribe to high-accuracy location tracking
       _gpsSubscription?.cancel();
       _gpsSubscription =
@@ -1075,13 +1175,17 @@ class _HomeScreenState extends State<HomeScreen> {
         "You are now LIVE on the map! Moving physical updates will update your coordinates.",
       );
     } else {
-      // Clean up connections, but PRESERVE _driverCurrentLocation to show last offline coordinate
+      // Clean up GPS tracking, but KEEP the socket alive to see other drivers
       _gpsSubscription?.cancel();
       _gpsSubscription = null;
       _serviceStatusSubscription?.cancel();
       _serviceStatusSubscription = null;
-      _socket?.disconnect();
-      _socket = null;
+
+      if (_socket != null && _socket!.connected) {
+        _socket!.emit('go_offline', {
+          'driverId': _loggedInDriver?['id'],
+        });
+      }
 
       setState(() {
         _isDriverLive = false;
@@ -1693,7 +1797,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               ],
                             ),
                           ),
-                        if (!widget.isDriverMode && _selectedDriver != null)
+                        if (_selectedDriver != null)
                           _buildSelectedDriverPopupMarker(),
                       ],
                     ),
@@ -1785,9 +1889,9 @@ class _HomeScreenState extends State<HomeScreen> {
                               widget.isDriverMode
                                   ? (_isDriverLive
                                       ? "🟢 You are Online & Tracking"
-                                      : "${_onlineDriversList.length} Drivers Online Near You")
+                                      : "${_onlineDriversList.where((d) => d['isLive'] == true || d['isLive'] == 1 || d['isLive'] == 'true').length} Drivers Online Near You")
                                   : (_userCurrentLocation == null
-                                      ? "${_onlineDriversList.length} Drivers Online"
+                                      ? "${_onlineDriversList.where((d) => d['isLive'] == true || d['isLive'] == 1 || d['isLive'] == 'true').length} Drivers Online"
                                       : "${_nearbyDriversCount.toString().padLeft(2, '0')} Drivers Online Near You"),
                               style: const TextStyle(
                                 color: Colors.black87,
@@ -1954,6 +2058,21 @@ class TriangleClipper extends CustomClipper<ui.Path> {
     path.moveTo(0, 0);
     path.lineTo(size.width, 0);
     path.lineTo(size.width / 2, size.height);
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(CustomClipper<ui.Path> oldClipper) => false;
+}
+
+class UpwardTriangleClipper extends CustomClipper<ui.Path> {
+  @override
+  ui.Path getClip(Size size) {
+    final path = ui.Path();
+    path.moveTo(size.width / 2, 0);
+    path.lineTo(size.width, size.height);
+    path.lineTo(0, size.height);
     path.close();
     return path;
   }
