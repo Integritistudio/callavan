@@ -189,10 +189,10 @@ exports.getLiveDrivers = async (req, res) => {
 
     const query = `
       SELECT 
-        dl.driver_id AS id, 
+        d.id AS id,
         dl.latitude, 
         dl.longitude, 
-        dl.is_live AS "isLive",
+        COALESCE(dl.is_live, false) AS "isLive",
         d.full_name AS "fullName", 
         d.mobile_number AS "phoneNumber", 
         d.company_name AS "companyName", 
@@ -200,8 +200,8 @@ exports.getLiveDrivers = async (req, res) => {
         d.profile_image_url AS "profileImageUrl", 
         d.van_image_url AS "vanImageUrl", 
         d.vehicle_type AS "vehicleType"
-      FROM driver_locations dl
-      JOIN drivers d ON dl.driver_id = d.id
+      FROM drivers d
+      LEFT JOIN driver_locations dl ON dl.driver_id = d.id
       WHERE d.is_approved = true;
     `;
 

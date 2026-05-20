@@ -82,6 +82,35 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Listen for driver manually going online
+  socket.on('go_live', async (data) => {
+    try {
+      const { driverId } = data;
+      if (!driverId) return;
+
+      // Store driverId in this socket session for disconnect cleanup
+      socket.driverId = driverId;
+
+      // Upsert to ensure driver has location record with is_live = true
+      const upsertQuery = `
+        INSERT INTO driver_locations (driver_id, is_live, is_logged_in, last_active)
+        VALUES ($1, true, true, NOW())
+        ON CONFLICT (driver_id) 
+        DO UPDATE SET 
+          is_live = true, 
+          is_logged_in = true,
+          last_active = NOW();
+      `;
+      await db.query(upsertQuery, [driverId]);
+
+      // Broadcast status change
+      io.emit('driver_status_changed', { driverId, isLive: true });
+      console.log(`🔌 [WebSocket] Driver ${driverId} went online manually.`);
+    } catch (error) {
+      console.error('❌ [WebSocket] Failed to process go_live:', error);
+    }
+  });
+
   // Listen for driver manually going offline (without disconnecting socket)
   socket.on('go_offline', async (data) => {
     try {

@@ -12,6 +12,8 @@ import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart' as geo;
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/app_colors.dart';
 import 'welcome_screen.dart';
 import 'widgets/radar_animation_marker.dart';
@@ -207,6 +209,18 @@ class _HomeScreenState extends State<HomeScreen> {
       _addressFetchLocation = coordinates;
       _userAddress = "Loading address...";
     });
+
+    // Geocoding is not supported on Flutter Web
+    if (kIsWeb) {
+      if (mounted) {
+        setState(() {
+          _userAddress = "${coordinates.latitude.toStringAsFixed(4)}, ${coordinates.longitude.toStringAsFixed(4)}";
+          _isFetchingAddress = false;
+        });
+      }
+      return;
+    }
+
     try {
       final placemarks = await geo.placemarkFromCoordinates(
         coordinates.latitude,
@@ -240,7 +254,6 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       }
     } catch (e) {
-      print("Geocoding Error: $e");
       if (mounted) {
         setState(() {
           _userAddress = "${coordinates.latitude.toStringAsFixed(4)}, ${coordinates.longitude.toStringAsFixed(4)}";
@@ -264,51 +277,98 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final double? lat = double.tryParse(driver['latitude']?.toString() ?? '');
     final double? lng = double.tryParse(driver['longitude']?.toString() ?? '');
-    if (lat != null && lng != null) {
-      try {
-        final placemarks = await geo.placemarkFromCoordinates(lat, lng);
-        if (placemarks.isNotEmpty) {
-          final p = placemarks.first;
-          final street = p.street ?? '';
-          final subLocality = p.subLocality ?? '';
-          final locality = p.locality ?? '';
-          List<String> parts = [];
-          if (street.isNotEmpty) parts.add(street);
-          if (subLocality.isNotEmpty) parts.add(subLocality);
-          if (locality.isNotEmpty) parts.add(locality);
-          if (mounted) {
-            setState(() {
-              _selectedDriverAddress = parts.join(', ');
-            });
-          }
-        } else {
-          if (mounted) {
-            setState(() {
-              _selectedDriverAddress = "${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}";
-            });
-          }
+
+    // Drivers with no location yet (never went live)
+    if (lat == null || lng == null || lat.isNaN || lng.isNaN) {
+      if (mounted) {
+        setState(() {
+          _selectedDriverAddress = "Location not available yet";
+          _isFetchingSelectedDriverAddress = false;
+        });
+      }
+      return;
+    }
+
+    // Geocoding is not supported on Flutter Web — skip and show coordinates
+    if (kIsWeb) {
+      if (mounted) {
+        setState(() {
+          _selectedDriverAddress = "${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}";
+          _isFetchingSelectedDriverAddress = false;
+        });
+      }
+      return;
+    }
+
+    try {
+      final placemarks = await geo.placemarkFromCoordinates(lat, lng);
+      if (placemarks.isNotEmpty) {
+        final p = placemarks.first;
+        final street = p.street ?? '';
+        final subLocality = p.subLocality ?? '';
+        final locality = p.locality ?? '';
+        List<String> parts = [];
+        if (street.isNotEmpty) parts.add(street);
+        if (subLocality.isNotEmpty) parts.add(subLocality);
+        if (locality.isNotEmpty) parts.add(locality);
+        if (mounted) {
+          setState(() {
+            _selectedDriverAddress = parts.isNotEmpty
+                ? parts.join(', ')
+                : "${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}";
+          });
         }
-      } catch (e) {
-        print("Driver Geocoding Error: $e");
+      } else {
         if (mounted) {
           setState(() {
             _selectedDriverAddress = "${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}";
           });
         }
-      } finally {
-        if (mounted) {
-          setState(() {
-            _isFetchingSelectedDriverAddress = false;
-          });
-        }
       }
-    } else {
+    } catch (e) {
       if (mounted) {
         setState(() {
-          _selectedDriverAddress = "Unknown location";
+          _selectedDriverAddress = "${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}";
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
           _isFetchingSelectedDriverAddress = false;
         });
       }
+    }
+  }
+
+  Future<void> _makePhoneCall(String phoneNumber) async {
+    if (phoneNumber.isEmpty || phoneNumber == 'N/A') {
+      _showNotification("No phone number available for this driver.", isError: true);
+      return;
+    }
+
+    try {
+      await Clipboard.setData(ClipboardData(text: phoneNumber));
+    } catch (e) {
+      print("Clipboard copy error: $e");
+    }
+
+    final Uri launchUri = Uri(
+      scheme: 'tel',
+      path: phoneNumber,
+    );
+
+    try {
+      final bool launched = await launchUrl(
+        launchUri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (launched) {
+        _showNotification("Opening dialer & copied phone number to clipboard.");
+      } else {
+        _showNotification("Phone number copied to clipboard: $phoneNumber");
+      }
+    } catch (e) {
+      _showNotification("Phone number copied to clipboard: $phoneNumber");
     }
   }
 
@@ -585,19 +645,28 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            const Icon(Icons.phone, size: 12, color: Colors.blueAccent),
-                            const SizedBox(width: 6),
-                            Text(
-                              _selectedDriver!['phoneNumber'] ?? 'N/A',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
+                        GestureDetector(
+                          onTap: () async {
+                            final String num = _selectedDriver!['phoneNumber'] ?? '';
+                            if (num.isNotEmpty && num != 'N/A') {
+                              await Clipboard.setData(ClipboardData(text: num));
+                              _showNotification("Phone number copied to clipboard: $num");
+                            }
+                          },
+                          child: Row(
+                            children: [
+                              const Icon(Icons.phone, size: 12, color: Colors.blueAccent),
+                              const SizedBox(width: 6),
+                              Text(
+                                _selectedDriver!['phoneNumber'] ?? 'N/A',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black87,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                         const SizedBox(height: 4),
                         Row(
@@ -651,25 +720,25 @@ class _HomeScreenState extends State<HomeScreen> {
                                       style: const TextStyle(fontSize: 10, color: Colors.black87),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
+                                      ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                        const SizedBox(height: 8),
-                        // Call Button
-                        SizedBox(
-                          width: double.infinity,
-                          height: 34,
-                          child: ElevatedButton.icon(
-                            onPressed: () {
-                              // Call triggering functionality
-                            },
-                            icon: const Icon(Icons.call, color: Colors.white, size: 14),
-                            label: const Text(
-                              "Call a Driver",
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                          const SizedBox(height: 8),
+                          // Call Button
+                          SizedBox(
+                            width: double.infinity,
+                            height: 34,
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                _makePhoneCall(_selectedDriver!['phoneNumber'] ?? '');
+                              },
+                              icon: const Icon(Icons.call, color: Colors.white, size: 14),
+                              label: const Text(
+                                "Call a Driver",
                               style: TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.bold,
@@ -851,8 +920,12 @@ class _HomeScreenState extends State<HomeScreen> {
       _socket = IO.io(
         backendUrl,
         IO.OptionBuilder()
-            .setTransports(['websocket'])
+            // Allow polling fallback so phone (USB/ADB) connects reliably
+            .setTransports(['websocket', 'polling'])
             .enableAutoConnect()
+            .enableReconnection()
+            .setReconnectionAttempts(5)
+            .setReconnectionDelay(2000)
             .build(),
       );
 
@@ -860,6 +933,12 @@ class _HomeScreenState extends State<HomeScreen> {
         print(
           "🔌 [WebSocket] Connected successfully with session ID: ${_socket?.id}",
         );
+        // Automatically announce live state if we are a driver and live
+        if (widget.isDriverMode && _isDriverLive && _loggedInDriver?['id'] != null) {
+          _socket?.emit('go_live', {
+            'driverId': _loggedInDriver?['id'],
+          });
+        }
       });
 
       _socket?.onConnectError((err) {
@@ -1094,6 +1173,13 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         setState(() {
           _isDriverLive = true;
+        });
+      }
+
+      // Emit status update instantly to socket if already connected
+      if (_socket != null && _socket!.connected && _loggedInDriver?['id'] != null) {
+        _socket!.emit('go_live', {
+          'driverId': _loggedInDriver?['id'],
         });
       }
 
@@ -1878,7 +1964,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               width: 8,
                               height: 8,
                               decoration: BoxDecoration(
-                                color: _isDriverLive
+                                color: (widget.isDriverMode && _isDriverLive)
                                     ? AppColors.successGreen
                                     : Colors.orangeAccent,
                                 shape: BoxShape.circle,
@@ -1886,13 +1972,21 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              widget.isDriverMode
-                                  ? (_isDriverLive
-                                      ? "🟢 You are Online & Tracking"
-                                      : "${_onlineDriversList.where((d) => d['isLive'] == true || d['isLive'] == 1 || d['isLive'] == 'true').length} Drivers Online Near You")
-                                  : (_userCurrentLocation == null
-                                      ? "${_onlineDriversList.where((d) => d['isLive'] == true || d['isLive'] == 1 || d['isLive'] == 'true').length} Drivers Online"
-                                      : "${_nearbyDriversCount.toString().padLeft(2, '0')} Drivers Online Near You"),
+                              () {
+                                final int online = _onlineDriversList.where((d) =>
+                                    d['isLive'] == true || d['isLive'] == 1 || d['isLive'] == 'true').length;
+                                final int offline = _onlineDriversList.where((d) =>
+                                    d['isLive'] != true && d['isLive'] != 1 && d['isLive'] != 'true').length;
+
+                                if (widget.isDriverMode) {
+                                  if (_isDriverLive) {
+                                    return "You are Online & Tracking";
+                                  }
+                                  return "${online.toString().padLeft(2, '0')} Online | ${offline.toString().padLeft(2, '0')} Offline";
+                                } else {
+                                  return "${online.toString().padLeft(2, '0')} Online | ${offline.toString().padLeft(2, '0')} Offline";
+                                }
+                              }(),
                               style: const TextStyle(
                                 color: Colors.black87,
                                 fontWeight: FontWeight.bold,

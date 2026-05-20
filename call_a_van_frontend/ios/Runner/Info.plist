@@ -70,5 +70,9 @@
 	<string>Call A Van needs access to your location to show drivers near you.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Call A Van needs access to your location to track your booking.</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>tel</string>
+	</array>
 </dict>
 </plist>
