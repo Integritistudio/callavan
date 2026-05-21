@@ -24,23 +24,23 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
       final token = prefs.getString('jwt_token');
       final driverJson = prefs.getString('logged_in_driver');
 
-      // if (token != null && driverJson != null) {
-      //   final driver = jsonDecode(driverJson);
-      //   // Show welcome screen for 1 second splash as requested
-      //   await Future.delayed(const Duration(seconds: 1));
-      //   if (mounted) {
-      //     Navigator.pushReplacement(
-      //       context,
-      //       MaterialPageRoute(
-      //         builder: (context) => HomeScreen(
-      //           isDriverMode: true,
-      //           initialToken: token,
-      //           initialDriver: driver,
-      //         ),
-      //       ),
-      //     );
-      //   }
-      // }
+      if (token != null && driverJson != null) {
+        final driver = jsonDecode(driverJson);
+        // Show welcome screen for 1 second splash as requested
+        await Future.delayed(const Duration(seconds: 1));
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => HomeScreen(
+                isDriverMode: true,
+                initialToken: token,
+                initialDriver: driver,
+              ),
+            ),
+          );
+        }
+      }
     } catch (e) {
       print("Error reading driver session from local storage: $e");
     }

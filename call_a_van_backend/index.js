@@ -40,9 +40,25 @@ app.use('/api/drivers', authRoutes);
 // Bind io instance to app so express controllers can access it
 app.set('io', io);
 
+// Helper to get formatted timestamp
+function getTimestamp() {
+  const now = new Date();
+  return `[${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}]`;
+}
+
+// Helper to get driver's full name asynchronously
+async function getDriverName(driverId) {
+  try {
+    const result = await db.query('SELECT full_name FROM drivers WHERE id = $1', [driverId]);
+    return result.rows[0]?.full_name || 'Unknown';
+  } catch (error) {
+    return 'Unknown';
+  }
+}
+
 // WebSocket Real-Time Tracking Core Hub
 io.on('connection', (socket) => {
-  console.log(`🔌 [WebSocket] Client connected: ${socket.id}`);
+  console.log(`${getTimestamp()} 🔌 [WebSocket] Customer connected (Session ID: ${socket.id})`);
 
   // Listen to coordinate streams from active live drivers
   socket.on('update_location', async (data) => {
@@ -105,7 +121,8 @@ io.on('connection', (socket) => {
 
       // Broadcast status change
       io.emit('driver_status_changed', { driverId, isLive: true });
-      console.log(`🔌 [WebSocket] Driver ${driverId} went online manually.`);
+      const driverName = await getDriverName(driverId);
+      console.log(`${getTimestamp()} 🔌 [WebSocket] Driver #${driverId} (${driverName}) went online manually.`);
     } catch (error) {
       console.error('❌ [WebSocket] Failed to process go_live:', error);
     }
@@ -122,7 +139,8 @@ io.on('connection', (socket) => {
 
       // Broadcast status change
       io.emit('driver_status_changed', { driverId, isLive: false });
-      console.log(`🧹 [WebSocket] Driver ${driverId} went offline manually.`);
+      const driverName = await getDriverName(driverId);
+      console.log(`${getTimestamp()} 🧹 [WebSocket] Driver #${driverId} (${driverName}) went offline manually.`);
     } catch (error) {
       console.error('❌ [WebSocket] Failed to process go_offline:', error);
     }
@@ -130,7 +148,6 @@ io.on('connection', (socket) => {
 
   // Auto-cleanup on client disconnect (app close, lost cell reception, battery death)
   socket.on('disconnect', async () => {
-    console.log(`🔌 [WebSocket] Client disconnected: ${socket.id}`);
     if (socket.driverId) {
       try {
         // Set is_live = false, but KEEP is_logged_in = true (so they show as offline on map)
@@ -138,10 +155,13 @@ io.on('connection', (socket) => {
         
         // Broadcast that this driver went offline
         io.emit('driver_status_changed', { driverId: socket.driverId, isLive: false });
-        console.log(`🧹 [WebSocket] Driver ${socket.driverId} marked offline dynamically on disconnect.`);
+        const driverName = await getDriverName(socket.driverId);
+        console.log(`${getTimestamp()} 🧹 [WebSocket] Driver #${socket.driverId} (${driverName}) disconnected and was marked offline dynamically.`);
       } catch (err) {
         console.error('❌ [WebSocket] Failed to mark driver offline on disconnect:', err);
       }
+    } else {
+      console.log(`${getTimestamp()} 🔌 [WebSocket] Customer disconnected (Session ID: ${socket.id})`);
     }
   });
 });

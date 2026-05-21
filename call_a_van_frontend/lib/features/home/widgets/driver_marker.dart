@@ -7,9 +7,10 @@ class DriverMarker extends Marker {
   DriverMarker({
     required Map<String, dynamic> driver,
     required VoidCallback onTap,
+    bool isOrange = false,
   }) : super(
-          width: 80.0,
-          height: 80.0,
+          width: 90.0, // Increased marker bounding size to prevent wave clipping
+          height: 90.0, // Increased marker bounding size to prevent wave clipping
           point: LatLng(
             double.tryParse(driver['latitude']?.toString() ?? '') ?? 0.0,
             double.tryParse(driver['longitude']?.toString() ?? '') ?? 0.0,
@@ -19,11 +20,11 @@ class DriverMarker extends Marker {
             child: (driver['isLive'] == true ||
                     driver['isLive'] == 1 ||
                     driver['isLive'] == 'true')
-                ? const LiveRadarMarker()
+                ? LiveRadarMarker(isOrange: isOrange)
                 : Center(
                     child: Container(
-                      width: 32,
-                      height: 32,
+                      width: 38, // Increased offline circle size
+                      height: 38, // Increased offline circle size
                       decoration: BoxDecoration(
                         color: Colors.grey.shade500,
                         shape: BoxShape.circle,
@@ -38,7 +39,7 @@ class DriverMarker extends Marker {
                       child: const Icon(
                         Icons.airport_shuttle_rounded,
                         color: Colors.white,
-                        size: 18,
+                        size: 24, // Increased offline icon size
                       ),
                     ),
                   ),

@@ -113,9 +113,8 @@ class _HomeScreenState extends State<HomeScreen> {
     _currentNotificationOverlay = OverlayEntry(
       builder: (context) {
         return Positioned(
-          bottom: 24.0 + MediaQuery.of(context).viewInsets.bottom, // Keyboard responsive overlay position
-          left: 16.0,
-          right: 16.0,
+          top: 100.0, // Below header
+          right: 16.0, // Aligned to the right side
           child: Material(
             color: Colors.transparent,
             child: Dismissible(
@@ -130,38 +129,41 @@ class _HomeScreenState extends State<HomeScreen> {
                 }
                 _notificationTimer?.cancel();
               },
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                decoration: BoxDecoration(
-                  color: isError ? Colors.redAccent : AppColors.successGreen,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black26,
-                      blurRadius: 10,
-                      offset: Offset(0, 5),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      isError ? Icons.error_outline : Icons.check_circle_outline,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        message,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
+              child: SizedBox(
+                width: 300, // Compact width
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: isError ? Colors.redAccent : AppColors.successGreen,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 10,
+                        offset: Offset(0, 5),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        isError ? Icons.error_outline : Icons.check_circle_outline,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          message,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -176,7 +178,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     // 4. Auto-dismiss timeout
-    _notificationTimer = Timer(const Duration(seconds: 4), () {
+    _notificationTimer = Timer(const Duration(seconds: 3), () {
       if (_currentNotificationOverlay != null) {
         try {
           _currentNotificationOverlay!.remove();
@@ -563,6 +565,10 @@ class _HomeScreenState extends State<HomeScreen> {
         print("❌ [WebSocket] Connection error: $err");
       });
 
+      _socket?.onDisconnect((reason) {
+        print("❌ [WebSocket] Connection lost with backend. Reason: $reason");
+      });
+
       // Listen for moving driver coordinate changes
       _socket?.on('driver_location_changed', (data) {
         if (mounted) {
@@ -764,7 +770,7 @@ class _HomeScreenState extends State<HomeScreen> {
           }
         }
       }).catchError((e) {
-        print("⚠️ [GPS] Initial location fetch failed: $e");
+        print("❌ [GPS] Initial location fetch failed: $e");
       });
 
       // 4. Subscribe to high-accuracy location tracking
@@ -808,7 +814,7 @@ class _HomeScreenState extends State<HomeScreen> {
               }
             },
             onError: (err) {
-              print("GPS Stream Error: $err");
+              print("❌ [GPS] Location stream error: $err");
             },
           );
 
@@ -1117,6 +1123,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 return DriverMarker(
                                   driver: driver,
                                   onTap: () => _selectDriver(driver),
+                                  isOrange: widget.isDriverMode,
                                 );
                               } catch (_) {
                                 return const Marker(
@@ -1136,10 +1143,10 @@ class _HomeScreenState extends State<HomeScreen> {
                             !_driverCurrentLocation!.latitude.isInfinite &&
                             !_driverCurrentLocation!.longitude.isInfinite)
                           Marker(
-                            width: 80.0,
-                            height: 80.0,
+                            width: 90.0,
+                            height: 90.0,
                             point: _driverCurrentLocation!,
-                            child: const LiveRadarMarker(),
+                            child: const LiveRadarMarker(isOrange: false), // Always green for own live driver
                           )
                         else if (!_isDriverLive &&
                             _driverCurrentLocation != null &&
@@ -1149,26 +1156,26 @@ class _HomeScreenState extends State<HomeScreen> {
                             !_driverCurrentLocation!.longitude.isInfinite)
                           // Render our last known offline position as a generic grey marker pin!
                           Marker(
-                            width: 50.0,
-                            height: 50.0,
+                            width: 60.0,
+                            height: 60.0,
                             point: _driverCurrentLocation!,
-                            child: Stack(
+                            child: const Stack(
                               alignment: Alignment.center,
                               children: [
-                                const Icon(
+                                Icon(
                                   Icons.circle,
                                   color: Colors.black26,
-                                  size: 40,
+                                  size: 44,
                                 ),
-                                const Icon(
+                                Icon(
                                   Icons.circle,
                                   color: Colors.white,
-                                  size: 26,
+                                  size: 30,
                                 ),
-                                const Icon(
+                                Icon(
                                   Icons.circle,
                                   color: Colors.grey,
-                                  size: 16,
+                                  size: 18,
                                 ),
                               ],
                             ),
