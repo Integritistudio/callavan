@@ -45,7 +45,10 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
+  final Map<int, AnimationController> _markerAnimations = {};
+  AnimationController? _ownLocationController;
+
   // --- SESSION AUTHENTICATION STATE ---
   String? _jwtToken;
   bool _isDriverLive = false;
@@ -71,22 +74,129 @@ class _HomeScreenState extends State<HomeScreen> {
   Timer? _notificationTimer;
   final MapController _mapController = MapController();
 
+  Future<void> _loadLastLocation() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final double? lastLat = prefs.getDouble('last_driver_lat');
+      final double? lastLng = prefs.getDouble('last_driver_lng');
+      if (lastLat != null && lastLng != null && !lastLat.isNaN && !lastLng.isNaN) {
+        if (mounted) {
+          setState(() {
+            _driverCurrentLocation = LatLng(lastLat, lastLng);
+          });
+          // Wait briefly for mapController to be fully bound/ready
+          Future.delayed(const Duration(milliseconds: 200), () {
+            if (mounted) {
+              _mapController.move(LatLng(lastLat, lastLng), 14.0);
+            }
+          });
+        }
+      }
+    } catch (e) {
+      print("Error loading last driver location: $e");
+    }
+  }
+
+  void _animateDriverMarker(int driverId, double newLat, double newLng, bool isLive) {
+    final index = _onlineDriversList.indexWhere((d) => d['id'] == driverId);
+    if (index == -1) {
+      _fetchLiveDriversInitial();
+      return;
+    }
+
+    final double oldLat = double.tryParse(_onlineDriversList[index]['latitude']?.toString() ?? '') ?? newLat;
+    final double oldLng = double.tryParse(_onlineDriversList[index]['longitude']?.toString() ?? '') ?? newLng;
+
+    _markerAnimations[driverId]?.dispose();
+
+    final controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    );
+    _markerAnimations[driverId] = controller;
+
+    final animation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: controller, curve: Curves.easeInOut),
+    );
+
+    animation.addListener(() {
+      if (mounted) {
+        setState(() {
+          double currentLat = oldLat + (newLat - oldLat) * animation.value;
+          double currentLng = oldLng + (newLng - oldLng) * animation.value;
+
+          final idx = _onlineDriversList.indexWhere((d) => d['id'] == driverId);
+          if (idx != -1) {
+            _onlineDriversList[idx]['latitude'] = currentLat;
+            _onlineDriversList[idx]['longitude'] = currentLng;
+            _onlineDriversList[idx]['isLive'] = isLive;
+          }
+
+          if (_selectedDriver != null && _selectedDriver!['id'] == driverId) {
+            _selectedDriver!['latitude'] = currentLat;
+            _selectedDriver!['longitude'] = currentLng;
+          }
+        });
+      }
+    });
+
+    controller.forward().then((_) {
+      controller.dispose();
+      if (_markerAnimations[driverId] == controller) {
+        _markerAnimations.remove(driverId);
+      }
+    });
+  }
+
+  void _animateOwnLocation(double newLat, double newLng) {
+    final double oldLat = _driverCurrentLocation?.latitude ?? newLat;
+    final double oldLng = _driverCurrentLocation?.longitude ?? newLng;
+
+    _ownLocationController?.dispose();
+    _ownLocationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    );
+
+    final animation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _ownLocationController!, curve: Curves.easeInOut),
+    );
+
+    animation.addListener(() {
+      if (mounted) {
+        setState(() {
+          double currentLat = oldLat + (newLat - oldLat) * animation.value;
+          double currentLng = oldLng + (newLng - oldLng) * animation.value;
+          _driverCurrentLocation = LatLng(currentLat, currentLng);
+        });
+      }
+    });
+
+    _ownLocationController!.forward();
+  }
+
   @override
   void initState() {
     super.initState();
     _jwtToken = widget.initialToken;
     _loggedInDriver = widget.initialDriver;
     _fetchLiveDriversInitial();
+    // Registered status listeners to track background updates
     _registerLocationServiceStatusListener();
     _initializeWebSocketStream();
-    if (widget.isDriverMode && _jwtToken != null) {
-      _isDriverLive = true;
-      _toggleLiveStatus(true);
-    }
+    _loadLastLocation();
+    // if (widget.isDriverMode && _jwtToken != null) {
+    //   _isDriverLive = true;
+    //   _toggleLiveStatus(true);
+    // }
   }
 
   @override
   void dispose() {
+    _ownLocationController?.dispose();
+    for (var controller in _markerAnimations.values) {
+      controller.dispose();
+    }
     _gpsSubscription?.cancel();
     _userLocationSubscription?.cancel();
     _serviceStatusSubscription?.cancel();
@@ -572,35 +682,19 @@ class _HomeScreenState extends State<HomeScreen> {
       // Listen for moving driver coordinate changes
       _socket?.on('driver_location_changed', (data) {
         if (mounted) {
-          setState(() {
-            final int driverId = data['driverId'];
-            final double? lat = double.tryParse(
-              data['latitude']?.toString() ?? '',
-            );
-            final double? lng = double.tryParse(
-              data['longitude']?.toString() ?? '',
-            );
+          final int driverId = data['driverId'];
+          final double? lat = double.tryParse(
+            data['latitude']?.toString() ?? '',
+          );
+          final double? lng = double.tryParse(
+            data['longitude']?.toString() ?? '',
+          );
 
-            if (lat == null || lng == null || lat.isNaN || lng.isNaN) {
-              return;
-            }
+          if (lat == null || lng == null || lat.isNaN || lng.isNaN) {
+            return;
+          }
 
-            final index = _onlineDriversList.indexWhere(
-              (d) => d['id'] == driverId,
-            );
-            if (index != -1) {
-              _onlineDriversList[index]['latitude'] = lat;
-              _onlineDriversList[index]['longitude'] = lng;
-              _onlineDriversList[index]['isLive'] = data['isLive'] ?? true;
-            } else {
-              _fetchLiveDriversInitial();
-            }
-
-            if (_selectedDriver != null && _selectedDriver!['id'] == driverId) {
-              _selectedDriver!['latitude'] = lat;
-              _selectedDriver!['longitude'] = lng;
-            }
-          });
+          _animateDriverMarker(driverId, lat, lng, data['isLive'] ?? true);
         }
       });
 
@@ -756,9 +850,7 @@ class _HomeScreenState extends State<HomeScreen> {
         final lng = position.longitude;
         if (!lat.isNaN && !lng.isNaN && !lat.isInfinite && !lng.isInfinite) {
           if (mounted) {
-            setState(() {
-              _driverCurrentLocation = LatLng(lat, lng);
-            });
+            _animateOwnLocation(lat, lng);
             _mapController.move(LatLng(lat, lng), 14.5);
           }
           if (_socket != null && _socket!.connected) {
@@ -768,6 +860,10 @@ class _HomeScreenState extends State<HomeScreen> {
               'longitude': lng,
             });
           }
+          SharedPreferences.getInstance().then((prefs) {
+            prefs.setDouble('last_driver_lat', lat);
+            prefs.setDouble('last_driver_lng', lng);
+          }).catchError((_) {});
         }
       }).catchError((e) {
         print("❌ [GPS] Initial location fetch failed: $e");
@@ -780,7 +876,7 @@ class _HomeScreenState extends State<HomeScreen> {
             locationSettings: const LocationSettings(
               accuracy: LocationAccuracy.high,
               distanceFilter:
-                  10, // Battery optimization: only emit coordinates if moved 10 meters!
+                  2, // Live updates: trigger coordinate stream every 2 meters!
             ),
           ).listen(
             (Position position) {
@@ -795,8 +891,8 @@ class _HomeScreenState extends State<HomeScreen> {
               }
 
               if (mounted) {
+                _animateOwnLocation(lat, lng);
                 setState(() {
-                  _driverCurrentLocation = LatLng(lat, lng);
                   _isDriverLive = true;
                 });
 
@@ -812,6 +908,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   'longitude': lng,
                 });
               }
+              SharedPreferences.getInstance().then((prefs) {
+                prefs.setDouble('last_driver_lat', lat);
+                prefs.setDouble('last_driver_lng', lng);
+              }).catchError((_) {});
             },
             onError: (err) {
               print("❌ [GPS] Location stream error: $err");

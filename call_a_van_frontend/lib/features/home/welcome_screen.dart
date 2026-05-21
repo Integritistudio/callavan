@@ -12,6 +12,8 @@ class WelcomeScreen extends StatefulWidget {
 }
 
 class _WelcomeScreenState extends State<WelcomeScreen> {
+  bool _isCheckingSession = true;
+
   @override
   void initState() {
     super.initState();
@@ -40,14 +42,55 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             ),
           );
         }
+      } else {
+        if (mounted) {
+          setState(() {
+            _isCheckingSession = false;
+          });
+        }
       }
     } catch (e) {
       print("Error reading driver session from local storage: $e");
+      if (mounted) {
+        setState(() {
+          _isCheckingSession = false;
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isCheckingSession) {
+      return Scaffold(
+        backgroundColor: AppColors.primaryBlue,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Hero(
+                tag: 'app_logo',
+                child: Image.asset(
+                  'assets/logo.png',
+                  height: 90,
+                  fit: BoxFit.contain,
+                ),
+              ),
+              const SizedBox(height: 24),
+              const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white70),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.primaryBlue,
       body: SafeArea(
