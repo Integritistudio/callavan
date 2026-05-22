@@ -227,26 +227,26 @@ class _DriverLoginModalState extends State<DriverLoginModal> {
                 controller: _loginPasswordController,
               ),
 
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () {},
-                  style: TextButton.styleFrom(
-                    padding: EdgeInsets.zero,
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  child: const Text(
-                    "Forgot Password?",
-                    style: TextStyle(
-                      color: AppColors.primaryBlue,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      decoration: TextDecoration.underline,
-                    ),
-                  ),
-                ),
-              ),
+              // Align(
+              //   alignment: Alignment.centerRight,
+              //   child: TextButton(
+              //     onPressed: () {},
+              //     style: TextButton.styleFrom(
+              //       padding: EdgeInsets.zero,
+              //       minimumSize: Size.zero,
+              //       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              //     ),
+              //     child: const Text(
+              //       "Forgot Password?",
+              //       style: TextStyle(
+              //         color: AppColors.primaryBlue,
+              //         fontSize: 12,
+              //         fontWeight: FontWeight.w600,
+              //         decoration: TextDecoration.underline,
+              //       ),
+              //     ),
+              //   ),
+              // ),
               const SizedBox(height: 24),
 
               ElevatedButton(

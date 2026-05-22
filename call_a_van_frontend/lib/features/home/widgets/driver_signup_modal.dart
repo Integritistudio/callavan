@@ -106,6 +106,14 @@ class _DriverSignupModalState extends State<DriverSignupModal> {
       return;
     }
 
+    if (password.length < 6) {
+      widget.showNotification(
+        "Password must be at least 6 characters long.",
+        isError: true,
+      );
+      return;
+    }
+
     if (!_insuranceConfirmed) {
       widget.showNotification(
         "You must confirm you are fully insured and operating legally.",
