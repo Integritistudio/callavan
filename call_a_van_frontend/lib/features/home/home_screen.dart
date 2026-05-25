@@ -900,8 +900,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           distanceFilter: 2,
           forceLocationManager: true,
           foregroundNotificationConfig: const ForegroundNotificationConfig(
-            notificationText: "Call A Van is tracking your location in background",
-            notificationTitle: "Live Driver Active",
+            notificationText: "You are currently visible to customers.",
+            notificationTitle: "Call A Van - Online 🟢",
             enableWakeLock: true,
           ),
         );
@@ -969,11 +969,36 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         "You are now LIVE on the map! Moving physical updates will update your coordinates.",
       );
     } else {
-      // Clean up GPS tracking, but KEEP the socket alive to see other drivers
-      _gpsSubscription?.cancel();
-      _gpsSubscription = null;
-      _serviceStatusSubscription?.cancel();
-      _serviceStatusSubscription = null;
+      // Clean up GPS tracking safely by awaiting cancellation to destroy Android Foreground Service
+      if (_gpsSubscription != null) {
+        await _gpsSubscription!.cancel();
+        _gpsSubscription = null;
+      }
+      
+      // --- INDUSTRY TRICK: Force Android to drop the stuck notification ---
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        try {
+          // We start a quick fake stream without foreground settings, then instantly kill it.
+          // This overwrites the system's memory and deletes the un-swipeable notification.
+          final dummyStream = Geolocator.getPositionStream(
+            locationSettings: AndroidSettings(
+              accuracy: LocationAccuracy.lowest,
+              distanceFilter: 100,
+            ),
+          ).listen((_) {});
+          
+          await Future.delayed(const Duration(milliseconds: 150));
+          await dummyStream.cancel();
+        } catch (e) {
+          print("Notification removal trick error: $e");
+        }
+      }
+      // --------------------------------------------------------------------
+
+      if (_serviceStatusSubscription != null) {
+        await _serviceStatusSubscription!.cancel();
+        _serviceStatusSubscription = null;
+      }
 
       if (_socket != null && _socket!.connected) {
         _socket!.emit('go_offline', {
@@ -1327,6 +1352,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                             child: const LiveRadarMarker(isOrange: false), // Always green for own live driver
                           )
                         else if (!_isDriverLive &&
+                            _loggedInDriver != null &&
                             _driverCurrentLocation != null &&
                             !_driverCurrentLocation!.latitude.isNaN &&
                             !_driverCurrentLocation!.longitude.isNaN &&
