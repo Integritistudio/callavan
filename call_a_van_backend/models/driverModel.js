@@ -7,17 +7,48 @@ class Driver {
     return result.rows[0];
   }
 
-  // Update a driver's name, mobile number, and profile image url
-  static async updateProfile(id, { fullName, mobileNumber, profileImageUrl }) {
+  // Update a driver's full profile details (excluding email for security)
+  static async updateProfile(id, { 
+    fullName, 
+    mobileNumber, 
+    companyName, 
+    baseArea, 
+    vehicleType, 
+    shortBio, 
+    servicesOffered, 
+    profileImageUrl, 
+    vanImageUrl 
+  }) {
     const queryText = `
       UPDATE drivers
       SET full_name = $1,
           mobile_number = $2,
-          profile_image_url = $3
-      WHERE id = $4
-      RETURNING id, full_name AS "fullName", email, mobile_number AS "mobileNumber", profile_image_url AS "profileImageUrl", company_name AS "companyName", base_area AS "baseArea", vehicle_type AS "vehicleType", is_live AS "isLive";
+          company_name = $3,
+          base_area = $4,
+          vehicle_type = $5,
+          short_bio = $6,
+          services_offered = $7,
+          profile_image_url = $8,
+          van_image_url = $9
+      WHERE id = $10
+      RETURNING id, full_name AS "fullName", email, mobile_number AS "mobileNumber", 
+                profile_image_url AS "profileImageUrl", van_image_url AS "vanImageUrl",
+                company_name AS "companyName", base_area AS "baseArea", 
+                vehicle_type AS "vehicleType", short_bio AS "shortBio", 
+                services_offered AS "servicesOffered", is_live AS "isLive", is_approved AS "isApproved";
     `;
-    const result = await db.query(queryText, [fullName.trim(), mobileNumber.trim(), profileImageUrl, id]);
+    const result = await db.query(queryText, [
+      fullName.trim(), 
+      mobileNumber.trim(), 
+      companyName.trim(), 
+      baseArea.trim(), 
+      vehicleType, 
+      (shortBio || '').trim(), 
+      JSON.stringify(servicesOffered || []), 
+      profileImageUrl, 
+      vanImageUrl, 
+      id
+    ]);
     return result.rows[0];
   }
 

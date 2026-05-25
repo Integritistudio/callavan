@@ -56,6 +56,9 @@ async function getDriverName(driverId) {
   }
 }
 
+// Dictionary to hold Grace Period timers for accidental disconnects
+const disconnectTimers = {};
+
 // WebSocket Real-Time Tracking Core Hub
 io.on('connection', (socket) => {
   console.log(`${getTimestamp()} 🔌 [WebSocket] Customer connected (Session ID: ${socket.id})`);
@@ -66,6 +69,13 @@ io.on('connection', (socket) => {
       const { driverId, latitude, longitude } = data;
       if (!driverId || latitude === undefined || longitude === undefined) {
         return;
+      }
+
+      // Cancel any pending Grace Period timeout if the driver resumed updating
+      if (disconnectTimers[driverId]) {
+        clearTimeout(disconnectTimers[driverId]);
+        delete disconnectTimers[driverId];
+        console.log(`${getTimestamp()} 🛡️ [WebSocket] Driver #${driverId} resumed tracking. Grace Period cancelled.`);
       }
 
       // Store driverId in this socket session so we can auto-cleanup on disconnect
@@ -104,6 +114,13 @@ io.on('connection', (socket) => {
       const { driverId } = data;
       if (!driverId) return;
 
+      // Cancel any pending Grace Period timeout if the driver explicitly goes live
+      if (disconnectTimers[driverId]) {
+        clearTimeout(disconnectTimers[driverId]);
+        delete disconnectTimers[driverId];
+        console.log(`${getTimestamp()} 🛡️ [WebSocket] Driver #${driverId} reconnected. Grace Period cancelled.`);
+      }
+
       // Store driverId in this socket session for disconnect cleanup
       socket.driverId = driverId;
 
@@ -134,6 +151,12 @@ io.on('connection', (socket) => {
       const { driverId } = data;
       if (!driverId) return;
 
+      // Cancel Grace Period timer since they intentionally went offline
+      if (disconnectTimers[driverId]) {
+        clearTimeout(disconnectTimers[driverId]);
+        delete disconnectTimers[driverId];
+      }
+
       // Update location table: set is_live = false, but keep is_logged_in = true
       await db.query('UPDATE driver_locations SET is_live = false WHERE driver_id = $1', [driverId]);
 
@@ -149,16 +172,30 @@ io.on('connection', (socket) => {
   // Auto-cleanup on client disconnect (app close, lost cell reception, battery death)
   socket.on('disconnect', async () => {
     if (socket.driverId) {
+      const dId = socket.driverId;
       try {
-        // Set is_live = false, but KEEP is_logged_in = true (so they show as offline on map)
-        await db.query('UPDATE driver_locations SET is_live = false WHERE driver_id = $1', [socket.driverId]);
-        
-        // Broadcast that this driver went offline
-        io.emit('driver_status_changed', { driverId: socket.driverId, isLive: false });
-        const driverName = await getDriverName(socket.driverId);
-        console.log(`${getTimestamp()} 🧹 [WebSocket] Driver #${socket.driverId} (${driverName}) disconnected and was marked offline dynamically.`);
+        const driverName = await getDriverName(dId);
+        console.log(`${getTimestamp()} ⚠️ [WebSocket] Driver #${dId} (${driverName}) disconnected. Starting 2-minute Grace Period...`);
+
+        // Start the 120-second (2 minute) Grace Period countdown timer
+        disconnectTimers[dId] = setTimeout(async () => {
+          try {
+            // Set is_live = false, but KEEP is_logged_in = true (so they show as a Grey Van on map)
+            await db.query('UPDATE driver_locations SET is_live = false WHERE driver_id = $1', [dId]);
+            
+            // Broadcast that this driver went offline
+            io.emit('driver_status_changed', { driverId: dId, isLive: false });
+            console.log(`${getTimestamp()} 🧹 [WebSocket] Driver #${dId} (${driverName}) Grace Period expired. Marked offline permanently.`);
+            
+            // Cleanup timer reference
+            delete disconnectTimers[dId];
+          } catch (err) {
+            console.error('❌ [WebSocket] Failed to mark driver offline after Grace Period:', err);
+          }
+        }, 120000); // 120,000 milliseconds = 2 minutes
+
       } catch (err) {
-        console.error('❌ [WebSocket] Failed to mark driver offline on disconnect:', err);
+        console.error('❌ [WebSocket] Failed to initiate Grace Period:', err);
       }
     } else {
       console.log(`${getTimestamp()} 🔌 [WebSocket] Customer disconnected (Session ID: ${socket.id})`);

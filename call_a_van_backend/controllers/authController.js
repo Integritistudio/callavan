@@ -170,6 +170,8 @@ exports.login = async (req, res) => {
         isLive: driver.is_live,
         profileImageUrl: driver.profile_image_url,
         vanImageUrl: driver.van_image_url,
+        shortBio: driver.short_bio,
+        servicesOffered: driver.services_offered,
       },
     });
 
@@ -228,8 +230,15 @@ exports.updateProfile = async (req, res) => {
     const {
       fullName,
       mobileNumber,
+      companyName,
+      baseArea,
+      vehicleType,
+      shortBio,
+      servicesOffered,
       profileImageBase64,
       profileImageName,
+      vanImageBase64,
+      vanImageName,
     } = req.body;
 
     // 1. Validate mandatory fields
@@ -242,7 +251,7 @@ exports.updateProfile = async (req, res) => {
 
     // 2. Query driver's existing database details
     const db = require('../config/db');
-    const driverQuery = await db.query('SELECT profile_image_url FROM drivers WHERE id = $1', [driverId]);
+    const driverQuery = await db.query('SELECT profile_image_url, van_image_url FROM drivers WHERE id = $1', [driverId]);
     if (driverQuery.rows.length === 0) {
       return res.status(404).json({
         status: 'error',
@@ -251,6 +260,7 @@ exports.updateProfile = async (req, res) => {
     }
 
     let profileImageUrl = driverQuery.rows[0].profile_image_url;
+    let vanImageUrl = driverQuery.rows[0].van_image_url;
 
     // 3. Decode base64 image and save if a new one was uploaded
     if (profileImageBase64 && profileImageName) {
@@ -260,11 +270,33 @@ exports.updateProfile = async (req, res) => {
       }
     }
 
+    if (vanImageBase64 && vanImageName) {
+      const newVanUrl = saveBase64Image(vanImageBase64, vanImageName, req.headers.host);
+      if (newVanUrl) {
+        vanImageUrl = newVanUrl;
+      }
+    }
+
+    let parsedServices = servicesOffered;
+    if (typeof servicesOffered === 'string') {
+      try {
+        parsedServices = JSON.parse(servicesOffered);
+      } catch (e) {
+        parsedServices = [];
+      }
+    }
+
     // 4. Update the PostgreSQL row details
     const updatedDriver = await Driver.updateProfile(driverId, {
       fullName,
       mobileNumber,
+      companyName,
+      baseArea,
+      vehicleType,
+      shortBio,
+      servicesOffered: parsedServices,
       profileImageUrl,
+      vanImageUrl,
     });
 
     // 5. Send success response back to Flutter

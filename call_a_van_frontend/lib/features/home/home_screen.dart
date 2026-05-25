@@ -11,6 +11,8 @@ import 'package:http/http.dart' as http;
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart' as geo;
 import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'package:cached_network_image/cached_network_image.dart';
+
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -28,6 +30,17 @@ import 'widgets/user_address_tooltip.dart';
 import 'widgets/dialogs.dart';
 import 'widgets/status_capsule.dart';
 import 'widgets/driver_bottom_bar.dart';
+
+class CachedTileProvider extends TileProvider {
+  CachedTileProvider({super.headers});
+  @override
+  ImageProvider getImage(TileCoordinates coordinates, TileLayer options) {
+    return CachedNetworkImageProvider(
+      getTileUrl(coordinates, options),
+      headers: headers,
+    );
+  }
+}
 
 class HomeScreen extends StatefulWidget {
   final bool isDriverMode;
@@ -185,10 +198,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _registerLocationServiceStatusListener();
     _initializeWebSocketStream();
     _loadLastLocation();
-    // if (widget.isDriverMode && _jwtToken != null) {
-    //   _isDriverLive = true;
-    //   _toggleLiveStatus(true);
-    // }
+
+    // Auto-resume live tracking if the driver was live before the app was minimized/closed
+    if (widget.isDriverMode && _jwtToken != null) {
+      SharedPreferences.getInstance().then((prefs) {
+        final wasLive = prefs.getBool('is_driver_live') ?? false;
+        if (wasLive) {
+          _toggleLiveStatus(true);
+        }
+      });
+    }
   }
 
   @override
@@ -834,6 +853,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           _isDriverLive = true;
         });
       }
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('is_driver_live', true);
 
       // Emit status update instantly to socket if already connected
       if (_socket != null && _socket!.connected && _loggedInDriver?['id'] != null) {
@@ -869,16 +890,38 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         print("❌ [GPS] Initial location fetch failed: $e");
       });
 
-      // 4. Subscribe to high-accuracy location tracking
+      // 4. Subscribe to high-accuracy location tracking with Foreground Service
       _gpsSubscription?.cancel();
+
+      late LocationSettings locationSettings;
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        locationSettings = AndroidSettings(
+          accuracy: LocationAccuracy.high,
+          distanceFilter: 2,
+          forceLocationManager: true,
+          foregroundNotificationConfig: const ForegroundNotificationConfig(
+            notificationText: "Call A Van is tracking your location in background",
+            notificationTitle: "Live Driver Active",
+            enableWakeLock: true,
+          ),
+        );
+      } else if (defaultTargetPlatform == TargetPlatform.iOS) {
+        locationSettings = AppleSettings(
+          accuracy: LocationAccuracy.high,
+          activityType: ActivityType.automotiveNavigation,
+          distanceFilter: 2,
+          pauseLocationUpdatesAutomatically: false,
+          showBackgroundLocationIndicator: true,
+        );
+      } else {
+        locationSettings = const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          distanceFilter: 2,
+        );
+      }
+
       _gpsSubscription =
-          Geolocator.getPositionStream(
-            locationSettings: const LocationSettings(
-              accuracy: LocationAccuracy.high,
-              distanceFilter:
-                  2, // Live updates: trigger coordinate stream every 2 meters!
-            ),
-          ).listen(
+          Geolocator.getPositionStream(locationSettings: locationSettings).listen(
             (Position position) {
               final lat = position.latitude;
               final lng = position.longitude;
@@ -940,6 +983,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
       setState(() {
         _isDriverLive = false;
+      });
+      SharedPreferences.getInstance().then((prefs) {
+        prefs.setBool('is_driver_live', false);
       });
 
       _showNotification(
@@ -1036,16 +1082,46 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _showNotification("Logged out successfully.", isError: false);
 
     if (mounted) {
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (context) => const WelcomeScreen()),
-        (route) => false,
-      );
+      _navigateBackToWelcome();
     }
+  }
+
+  void _navigateBackToWelcome() {
+    Navigator.of(context).pushAndRemoveUntil(
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) => const WelcomeScreen(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          const begin = Offset(-0.15, 0.0); // Subtle, elegant slide back
+          const end = Offset.zero;
+          const curve = Curves.easeOutCubic;
+
+          var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+
+          return SlideTransition(
+            position: animation.drive(tween),
+            child: FadeTransition(
+              opacity: animation,
+              child: child,
+            ),
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 350), // Smooth 350ms duration
+      ),
+      (route) => false,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      canPop: _jwtToken != null, // Let system pop to background ONLY if driver is logged in
+      onPopInvoked: (didPop) {
+        if (didPop) return; // Handled naturally (system exited to home screen)
+
+        // For customers or guests, intercept the back button and slide back smoothly
+        _navigateBackToWelcome();
+      },
+      child: Scaffold(
       backgroundColor: AppColors.backgroundGrey,
       appBar: AppBar(
         automaticallyImplyLeading: false,
@@ -1133,10 +1209,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 if (_jwtToken != null) {
                   _showDriverLogoutRequiredDialog();
                 } else {
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(builder: (context) => const WelcomeScreen()),
-                    (route) => false,
-                  );
+                  _navigateBackToWelcome();
                 }
               },
             ),
@@ -1145,10 +1218,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               icon: const Icon(Icons.home_rounded, color: Colors.white),
               tooltip: "Back to Home",
               onPressed: () {
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (context) => const WelcomeScreen()),
-                  (route) => false,
-                );
+                _navigateBackToWelcome();
               },
             ),
           ],
@@ -1187,8 +1257,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   options: MapOptions(
                     initialCenter: const LatLng(51.5074, -0.1278), // London
                     initialZoom: 13.0,
-                    minZoom: 3.5,
-                    maxZoom: 18.0,
+                    minZoom: 3.0, // Allows seeing the whole world view
+                    maxZoom: 18.0, // Hard limit to prevent zooming into grey void 404s
                     onTap: (tapPosition, point) {
                       setState(() {
                         _selectedDriver = null;
@@ -1211,6 +1281,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           'https://api.mapbox.com/styles/v1/${dotenv.env['MAPBOX_USERNAME'] ?? 'mapbox'}/${dotenv.env['MAPBOX_STYLE_ID'] ?? 'streets-v12'}/tiles/512/{z}/{x}/{y}@2x?access_token=${dotenv.env['MAPBOX_ACCESS_TOKEN'] ?? ''}',
                       tileDimension: 512,
                       zoomOffset: -1,
+                      maxNativeZoom: 19, // Tells map to digitally scale tiles past level 19 for smooth deep zoom
+                      maxZoom: 19.0,
+                      keepBuffer: 3, // Pre-load tiles in background slightly outside view
+                      panBuffer: 2, // Smoothly lazy-load tiles as you swipe
+                      retinaMode: true, // Enhances sharpness and prevents blurry lines
+                      tileProvider: CachedTileProvider(
+                        headers: {'User-Agent': 'com.example.call_a_van'},
+                      ), // Implements local device caching
                       userAgentPackageName: 'com.example.call_a_van',
                     ),
                     MarkerLayer(
@@ -1446,6 +1524,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
         ],
       ),
-    );
+    ));
   }
 }
