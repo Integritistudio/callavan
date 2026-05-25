@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../../../core/app_colors.dart';
+import 'change_password_dialog.dart';
 
 class DriverProfileDialog extends StatefulWidget {
   final Map<String, dynamic>? loggedInDriver;
@@ -586,8 +587,13 @@ class _DriverProfileDialogState extends State<DriverProfileDialog> {
           isPassword: true,
           suffixIcon: TextButton(
             onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Password reset verification coming soon.")),
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (ctx) => ChangePasswordDialog(
+                  jwtToken: widget.jwtToken,
+                  showNotification: widget.showNotification,
+                ),
               );
             },
             child: const Text("Reset", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),

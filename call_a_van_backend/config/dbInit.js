@@ -40,11 +40,13 @@ const initializeDatabase = async () => {
       console.log('🟢 [Database] Table "drivers" is already active.');
     }
 
-    // Dynamic schema expansion: ensure image url columns exist on startup
+    // Dynamic schema expansion: ensure image url and password reset columns exist on startup
     await db.query(`
       ALTER TABLE drivers 
       ADD COLUMN IF NOT EXISTS profile_image_url TEXT,
-      ADD COLUMN IF NOT EXISTS van_image_url TEXT;
+      ADD COLUMN IF NOT EXISTS van_image_url TEXT,
+      ADD COLUMN IF NOT EXISTS reset_password_otp VARCHAR(10),
+      ADD COLUMN IF NOT EXISTS reset_password_expires TIMESTAMP;
     `);
 
     // Create driver_locations table for decoupled high-frequency live tracking

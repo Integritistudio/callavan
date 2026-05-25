@@ -40,6 +40,7 @@ class _DriverSignupModalState extends State<DriverSignupModal> {
   String? _vanImageBase64;
 
   bool _isSubmitting = false;
+  bool _isPasswordVisible = false;
 
   @override
   void dispose() {
@@ -205,7 +206,7 @@ class _DriverSignupModalState extends State<DriverSignupModal> {
           const SizedBox(height: 6),
           TextField(
             controller: controller,
-            obscureText: isPassword,
+            obscureText: isPassword && !_isPasswordVisible,
             maxLines: maxLines,
             onChanged: (v) => onChanged(),
             style: const TextStyle(fontSize: 13),
@@ -214,6 +215,20 @@ class _DriverSignupModalState extends State<DriverSignupModal> {
               hintStyle: TextStyle(color: Colors.grey[400], fontSize: 13),
               filled: true,
               fillColor: const Color(0xFFF0F7FF),
+              suffixIcon: isPassword
+                  ? IconButton(
+                      icon: Icon(
+                        _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
+                        color: Colors.grey,
+                        size: 18,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _isPasswordVisible = !_isPasswordVisible;
+                        });
+                      },
+                    )
+                  : null,
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 14,
                 vertical: 12,

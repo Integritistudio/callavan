@@ -104,6 +104,40 @@ class Driver {
     const result = await db.query(queryText, values);
     return result.rows[0];
   }
+
+  // --- PASSWORD RESET OTP METHODS ---
+
+  static async saveResetOtp(email, otp, expiryDate) {
+    const query = `
+      UPDATE drivers 
+      SET reset_password_otp = $1, reset_password_expires = $2
+      WHERE email = $3
+      RETURNING id, email;
+    `;
+    const result = await db.query(query, [otp, expiryDate, email.toLowerCase().trim()]);
+    return result.rows[0];
+  }
+
+  static async findValidOtp(email, otp) {
+    const query = `
+      SELECT id, email, reset_password_otp, reset_password_expires 
+      FROM drivers 
+      WHERE email = $1 AND reset_password_otp = $2 AND reset_password_expires > NOW();
+    `;
+    const result = await db.query(query, [email.toLowerCase().trim(), otp]);
+    return result.rows[0];
+  }
+
+  static async updatePasswordAndClearOtp(email, newPasswordHash) {
+    const query = `
+      UPDATE drivers 
+      SET password_hash = $1, reset_password_otp = NULL, reset_password_expires = NULL
+      WHERE email = $2
+      RETURNING id, email;
+    `;
+    const result = await db.query(query, [newPasswordHash, email.toLowerCase().trim()]);
+    return result.rows[0];
+  }
 }
 
 module.exports = Driver;
