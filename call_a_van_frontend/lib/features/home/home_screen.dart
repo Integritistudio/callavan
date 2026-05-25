@@ -92,7 +92,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       final prefs = await SharedPreferences.getInstance();
       final double? lastLat = prefs.getDouble('last_driver_lat');
       final double? lastLng = prefs.getDouble('last_driver_lng');
-      if (lastLat != null && lastLng != null && !lastLat.isNaN && !lastLng.isNaN) {
+      if (lastLat != null &&
+          lastLng != null &&
+          !lastLat.isNaN &&
+          !lastLng.isNaN) {
         if (mounted) {
           setState(() {
             _driverCurrentLocation = LatLng(lastLat, lastLng);
@@ -110,15 +113,28 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
-  void _animateDriverMarker(int driverId, double newLat, double newLng, bool isLive) {
+  void _animateDriverMarker(
+    int driverId,
+    double newLat,
+    double newLng,
+    bool isLive,
+  ) {
     final index = _onlineDriversList.indexWhere((d) => d['id'] == driverId);
     if (index == -1) {
       _fetchLiveDriversInitial();
       return;
     }
 
-    final double oldLat = double.tryParse(_onlineDriversList[index]['latitude']?.toString() ?? '') ?? newLat;
-    final double oldLng = double.tryParse(_onlineDriversList[index]['longitude']?.toString() ?? '') ?? newLng;
+    final double oldLat =
+        double.tryParse(
+          _onlineDriversList[index]['latitude']?.toString() ?? '',
+        ) ??
+        newLat;
+    final double oldLng =
+        double.tryParse(
+          _onlineDriversList[index]['longitude']?.toString() ?? '',
+        ) ??
+        newLng;
 
     _markerAnimations[driverId]?.dispose();
 
@@ -128,9 +144,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
     _markerAnimations[driverId] = controller;
 
-    final animation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: controller, curve: Curves.easeInOut),
-    );
+    final animation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: controller, curve: Curves.easeInOut));
 
     animation.addListener(() {
       if (mounted) {
@@ -198,6 +215,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _registerLocationServiceStatusListener();
     _initializeWebSocketStream();
     _loadLastLocation();
+    
+    // Auto-detect and start location for customer if already permitted
+    _autoDetectCustomerLocation();
 
     // Auto-resume live tracking if the driver was live before the app was minimized/closed
     if (widget.isDriverMode && _jwtToken != null) {
@@ -261,7 +281,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               child: SizedBox(
                 width: 300, // Compact width
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
                   decoration: BoxDecoration(
                     color: isError ? Colors.redAccent : AppColors.successGreen,
                     borderRadius: BorderRadius.circular(12),
@@ -276,7 +299,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   child: Row(
                     children: [
                       Icon(
-                        isError ? Icons.error_outline : Icons.check_circle_outline,
+                        isError
+                            ? Icons.error_outline
+                            : Icons.check_circle_outline,
                         color: Colors.white,
                         size: 20,
                       ),
@@ -318,13 +343,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   int get _nearbyDriversCount {
-    final liveDrivers = _onlineDriversList.where((d) =>
-        d['isLive'] == true || d['isLive'] == 1 || d['isLive'] == 'true');
+    final liveDrivers = _onlineDriversList.where(
+      (d) => d['isLive'] == true || d['isLive'] == 1 || d['isLive'] == 'true',
+    );
     if (_userCurrentLocation == null) return liveDrivers.length;
     int count = 0;
     for (var driver in liveDrivers) {
       final double? lat = double.tryParse(driver['latitude']?.toString() ?? '');
-      final double? lng = double.tryParse(driver['longitude']?.toString() ?? '');
+      final double? lng = double.tryParse(
+        driver['longitude']?.toString() ?? '',
+      );
       if (lat != null && lng != null && !lat.isNaN && !lng.isNaN) {
         final double distanceInMeters = Geolocator.distanceBetween(
           _userCurrentLocation!.latitude,
@@ -353,7 +381,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (kIsWeb) {
       if (mounted) {
         setState(() {
-          _userAddress = "${coordinates.latitude.toStringAsFixed(4)}, ${coordinates.longitude.toStringAsFixed(4)}";
+          _userAddress =
+              "${coordinates.latitude.toStringAsFixed(4)}, ${coordinates.longitude.toStringAsFixed(4)}";
           _isFetchingAddress = false;
         });
       }
@@ -374,8 +403,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         final country = p.country ?? '';
 
         List<String> parts = [];
-        if (street.isNotEmpty && street != name) parts.add(street);
-        else if (name.isNotEmpty) parts.add(name);
+        if (street.isNotEmpty && street != name)
+          parts.add(street);
+        else if (name.isNotEmpty)
+          parts.add(name);
         if (subLocality.isNotEmpty) parts.add(subLocality);
         if (locality.isNotEmpty) parts.add(locality);
         if (country.isNotEmpty) parts.add(country);
@@ -388,14 +419,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       } else {
         if (mounted) {
           setState(() {
-            _userAddress = "Coordinates: ${coordinates.latitude.toStringAsFixed(4)}, ${coordinates.longitude.toStringAsFixed(4)}";
+            _userAddress =
+                "Coordinates: ${coordinates.latitude.toStringAsFixed(4)}, ${coordinates.longitude.toStringAsFixed(4)}";
           });
         }
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _userAddress = "${coordinates.latitude.toStringAsFixed(4)}, ${coordinates.longitude.toStringAsFixed(4)}";
+          _userAddress =
+              "${coordinates.latitude.toStringAsFixed(4)}, ${coordinates.longitude.toStringAsFixed(4)}";
         });
       }
     } finally {
@@ -432,7 +465,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (kIsWeb) {
       if (mounted) {
         setState(() {
-          _selectedDriverAddress = "${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}";
+          _selectedDriverAddress =
+              "${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}";
           _isFetchingSelectedDriverAddress = false;
         });
       }
@@ -460,14 +494,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       } else {
         if (mounted) {
           setState(() {
-            _selectedDriverAddress = "${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}";
+            _selectedDriverAddress =
+                "${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}";
           });
         }
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _selectedDriverAddress = "${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}";
+          _selectedDriverAddress =
+              "${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}";
         });
       }
     } finally {
@@ -481,7 +517,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Future<void> _makePhoneCall(String phoneNumber) async {
     if (phoneNumber.isEmpty || phoneNumber == 'N/A') {
-      _showNotification("No phone number available for this driver.", isError: true);
+      _showNotification(
+        "No phone number available for this driver.",
+        isError: true,
+      );
       return;
     }
 
@@ -491,10 +530,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       print("Clipboard copy error: $e");
     }
 
-    final Uri launchUri = Uri(
-      scheme: 'tel',
-      path: phoneNumber,
-    );
+    final Uri launchUri = Uri(scheme: 'tel', path: phoneNumber);
 
     try {
       final bool launched = await launchUrl(
@@ -591,49 +627,95 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       }
 
       // Subscribe to live updates so position moves with the user
-      _userLocationSubscription = Geolocator.getPositionStream(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          distanceFilter: 5,
-        ),
-      ).listen(
-        (Position pos) {
-          final lat = pos.latitude;
-          final lng = pos.longitude;
-          if (lat.isNaN || lng.isNaN || lat.isInfinite || lng.isInfinite) return;
+      _userLocationSubscription =
+          Geolocator.getPositionStream(
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.high,
+              distanceFilter: 5,
+            ),
+          ).listen(
+            (Position pos) {
+              final lat = pos.latitude;
+              final lng = pos.longitude;
+              if (lat.isNaN || lng.isNaN || lat.isInfinite || lng.isInfinite)
+                return;
 
-          if (mounted) {
-            setState(() {
-              _userCurrentLocation = LatLng(lat, lng);
+              if (mounted) {
+                setState(() {
+                  _userCurrentLocation = LatLng(lat, lng);
 
-              if (_showAddressTooltip && _addressFetchLocation != null) {
-                final double distance = Geolocator.distanceBetween(
-                  _addressFetchLocation!.latitude,
-                  _addressFetchLocation!.longitude,
-                  lat,
-                  lng,
-                );
-                if (distance > 20) {
-                  _showAddressTooltip = false;
-                  _addressFetchLocation = null;
-                }
+                  if (_showAddressTooltip && _addressFetchLocation != null) {
+                    final double distance = Geolocator.distanceBetween(
+                      _addressFetchLocation!.latitude,
+                      _addressFetchLocation!.longitude,
+                      lat,
+                      lng,
+                    );
+                    if (distance > 20) {
+                      _showAddressTooltip = false;
+                      _addressFetchLocation = null;
+                    }
+                  }
+                });
               }
-            });
-          }
-        },
-        onError: (err) {
-          print("User location stream error: $err");
-        },
-      );
+            },
+            onError: (err) {
+              print("User location stream error: $err");
+            },
+          );
     } catch (e) {
       print("Error getting user location: $e");
-      _showNotification("Failed to fetch your current location.", isError: true);
+      _showNotification(
+        "Failed to fetch your current location.",
+        isError: true,
+      );
     } finally {
       if (mounted) {
         setState(() {
           _isLocatingUser = false;
         });
       }
+    }
+  }
+
+  // --- AUTO DETECT CUSTOMER LOCATION ---
+  Future<void> _autoDetectCustomerLocation() async {
+    if (widget.isDriverMode) return;
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return;
+    
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
+      _enableUserLocationSilently();
+    }
+  }
+
+  Future<void> _enableUserLocationSilently() async {
+    if (mounted) setState(() => _isLocatingUser = true);
+    try {
+      await _userLocationSubscription?.cancel();
+      
+      final Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      if (mounted) {
+        setState(() {
+          _userCurrentLocation = LatLng(position.latitude, position.longitude);
+        });
+        _mapController.move(_userCurrentLocation!, 14.0);
+      }
+
+      _userLocationSubscription = Geolocator.getPositionStream(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 5),
+      ).listen((Position pos) {
+        if (mounted) {
+          setState(() {
+            _userCurrentLocation = LatLng(pos.latitude, pos.longitude);
+          });
+        }
+      });
+    } catch (e) {
+      print("Auto-location failed: $e");
+    } finally {
+      if (mounted) setState(() => _isLocatingUser = false);
     }
   }
 
@@ -683,10 +765,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           "🔌 [WebSocket] Connected successfully with session ID: ${_socket?.id}",
         );
         // Automatically announce live state if we are a driver and live
-        if (widget.isDriverMode && _isDriverLive && _loggedInDriver?['id'] != null) {
-          _socket?.emit('go_live', {
-            'driverId': _loggedInDriver?['id'],
-          });
+        if (widget.isDriverMode &&
+            _isDriverLive &&
+            _loggedInDriver?['id'] != null) {
+          _socket?.emit('go_live', {'driverId': _loggedInDriver?['id']});
         }
       });
 
@@ -729,7 +811,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             if (index != -1) {
               _onlineDriversList[index]['isLive'] = isLive;
               // If this is the currently selected driver, update their status live on the popup card as well
-              if (_selectedDriver != null && _selectedDriver!['id'] == driverId) {
+              if (_selectedDriver != null &&
+                  _selectedDriver!['id'] == driverId) {
                 _selectedDriver!['isLive'] = isLive;
               }
             } else {
@@ -794,6 +877,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             );
           }
         }
+      } else if (status == ServiceStatus.enabled) {
+        if (!widget.isDriverMode) {
+          _autoDetectCustomerLocation();
+        }
       }
     });
   }
@@ -857,38 +944,43 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       await prefs.setBool('is_driver_live', true);
 
       // Emit status update instantly to socket if already connected
-      if (_socket != null && _socket!.connected && _loggedInDriver?['id'] != null) {
-        _socket!.emit('go_live', {
-          'driverId': _loggedInDriver?['id'],
-        });
+      if (_socket != null &&
+          _socket!.connected &&
+          _loggedInDriver?['id'] != null) {
+        _socket!.emit('go_live', {'driverId': _loggedInDriver?['id']});
       }
 
       // Fetch and broadcast initial location asynchronously (non-blocking) to show online immediately
-      Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      ).then((position) {
-        final lat = position.latitude;
-        final lng = position.longitude;
-        if (!lat.isNaN && !lng.isNaN && !lat.isInfinite && !lng.isInfinite) {
-          if (mounted) {
-            _animateOwnLocation(lat, lng);
-            _mapController.move(LatLng(lat, lng), 14.5);
-          }
-          if (_socket != null && _socket!.connected) {
-            _socket!.emit('update_location', {
-              'driverId': _loggedInDriver?['id'],
-              'latitude': lat,
-              'longitude': lng,
-            });
-          }
-          SharedPreferences.getInstance().then((prefs) {
-            prefs.setDouble('last_driver_lat', lat);
-            prefs.setDouble('last_driver_lng', lng);
-          }).catchError((_) {});
-        }
-      }).catchError((e) {
-        print("❌ [GPS] Initial location fetch failed: $e");
-      });
+      Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high)
+          .then((position) {
+            final lat = position.latitude;
+            final lng = position.longitude;
+            if (!lat.isNaN &&
+                !lng.isNaN &&
+                !lat.isInfinite &&
+                !lng.isInfinite) {
+              if (mounted) {
+                _animateOwnLocation(lat, lng);
+                _mapController.move(LatLng(lat, lng), 14.5);
+              }
+              if (_socket != null && _socket!.connected) {
+                _socket!.emit('update_location', {
+                  'driverId': _loggedInDriver?['id'],
+                  'latitude': lat,
+                  'longitude': lng,
+                });
+              }
+              SharedPreferences.getInstance()
+                  .then((prefs) {
+                    prefs.setDouble('last_driver_lat', lat);
+                    prefs.setDouble('last_driver_lng', lng);
+                  })
+                  .catchError((_) {});
+            }
+          })
+          .catchError((e) {
+            print("❌ [GPS] Initial location fetch failed: $e");
+          });
 
       // 4. Subscribe to high-accuracy location tracking with Foreground Service
       _gpsSubscription?.cancel();
@@ -921,7 +1013,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       }
 
       _gpsSubscription =
-          Geolocator.getPositionStream(locationSettings: locationSettings).listen(
+          Geolocator.getPositionStream(
+            locationSettings: locationSettings,
+          ).listen(
             (Position position) {
               final lat = position.latitude;
               final lng = position.longitude;
@@ -951,10 +1045,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   'longitude': lng,
                 });
               }
-              SharedPreferences.getInstance().then((prefs) {
-                prefs.setDouble('last_driver_lat', lat);
-                prefs.setDouble('last_driver_lng', lng);
-              }).catchError((_) {});
+              SharedPreferences.getInstance()
+                  .then((prefs) {
+                    prefs.setDouble('last_driver_lat', lat);
+                    prefs.setDouble('last_driver_lng', lng);
+                  })
+                  .catchError((_) {});
             },
             onError: (err) {
               print("❌ [GPS] Location stream error: $err");
@@ -974,7 +1070,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         await _gpsSubscription!.cancel();
         _gpsSubscription = null;
       }
-      
+
       // --- INDUSTRY TRICK: Force Android to drop the stuck notification ---
       if (defaultTargetPlatform == TargetPlatform.android) {
         try {
@@ -986,7 +1082,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               distanceFilter: 100,
             ),
           ).listen((_) {});
-          
+
           await Future.delayed(const Duration(milliseconds: 150));
           await dummyStream.cancel();
         } catch (e) {
@@ -1001,9 +1097,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       }
 
       if (_socket != null && _socket!.connected) {
-        _socket!.emit('go_offline', {
-          'driverId': _loggedInDriver?['id'],
-        });
+        _socket!.emit('go_offline', {'driverId': _loggedInDriver?['id']});
       }
 
       setState(() {
@@ -1020,30 +1114,23 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
-
-
-
-
   // --- INFO DIALOG: SHOW HOW TO APPROVE ---
   void _showApprovalGuidanceDialog(String email) {
     HomeDialogs.showApprovalGuidance(context);
   }
 
   void _showDriverLogoutRequiredDialog() {
-    HomeDialogs.showDriverLogoutRequired(
-      context,
-      onConfirm: _logoutDriver,
-    );
+    HomeDialogs.showDriverLogoutRequired(context, onConfirm: _logoutDriver);
   }
-
-
 
   String _getCorrectImageUrl(String? rawUrl) {
     if (rawUrl == null || rawUrl.isEmpty) return '';
     final backendUrl = dotenv.env['BACKEND_URL'] ?? 'http://10.0.2.2:5000';
     String backendAuthority = Uri.parse(backendUrl).authority;
     if (backendAuthority.isEmpty) {
-      backendAuthority = backendUrl.replaceAll('http://', '').replaceAll('https://', '');
+      backendAuthority = backendUrl
+          .replaceAll('http://', '')
+          .replaceAll('https://', '');
     }
     if (rawUrl.startsWith('http')) {
       return rawUrl
@@ -1054,7 +1141,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
-  Future<void> _handleLoginSuccess(String token, Map<String, dynamic> driver) async {
+  Future<void> _handleLoginSuccess(
+    String token,
+    Map<String, dynamic> driver,
+  ) async {
     setState(() {
       _jwtToken = token;
       _loggedInDriver = driver;
@@ -1114,23 +1204,26 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void _navigateBackToWelcome() {
     Navigator.of(context).pushAndRemoveUntil(
       PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) => const WelcomeScreen(),
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            const WelcomeScreen(),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           const begin = Offset(-0.15, 0.0); // Subtle, elegant slide back
           const end = Offset.zero;
           const curve = Curves.easeOutCubic;
 
-          var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+          var tween = Tween(
+            begin: begin,
+            end: end,
+          ).chain(CurveTween(curve: curve));
 
           return SlideTransition(
             position: animation.drive(tween),
-            child: FadeTransition(
-              opacity: animation,
-              child: child,
-            ),
+            child: FadeTransition(opacity: animation, child: child),
           );
         },
-        transitionDuration: const Duration(milliseconds: 350), // Smooth 350ms duration
+        transitionDuration: const Duration(
+          milliseconds: 350,
+        ), // Smooth 350ms duration
       ),
       (route) => false,
     );
@@ -1139,7 +1232,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: _jwtToken != null, // Let system pop to background ONLY if driver is logged in
+      canPop:
+          _jwtToken !=
+          null, // Let system pop to background ONLY if driver is logged in
       onPopInvoked: (didPop) {
         if (didPop) return; // Handled naturally (system exited to home screen)
 
@@ -1147,409 +1242,444 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         _navigateBackToWelcome();
       },
       child: Scaffold(
-      backgroundColor: AppColors.backgroundGrey,
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        centerTitle: false,
-        backgroundColor: AppColors.primaryBlue,
-        elevation: 0,
-        title: Image.asset('assets/logo.png', height: 30),
-        actions: [
-          if (widget.isDriverMode) ...[
-            if (_jwtToken != null)
-              GestureDetector(
-                onTap: () {
-                  showDialog(
-                    context: context,
-                    builder: (context) => DriverProfileDialog(
-                      loggedInDriver: _loggedInDriver,
-                      jwtToken: _jwtToken,
-                      onLogout: _logoutDriver,
-                      onProfileUpdated: (updatedDriver) {
-                        setState(() {
-                          _loggedInDriver = updatedDriver;
-                        });
-                      },
-                      showNotification: _showNotification,
-                      getCorrectImageUrl: _getCorrectImageUrl,
+        backgroundColor: AppColors.backgroundGrey,
+        appBar: AppBar(
+          automaticallyImplyLeading: false,
+          centerTitle: false,
+          backgroundColor: AppColors.primaryBlue,
+          elevation: 0,
+          title: Image.asset('assets/logo.png', height: 30),
+          actions: [
+            if (widget.isDriverMode) ...[
+              if (_jwtToken != null)
+                GestureDetector(
+                  onTap: () {
+                    showDialog(
+                      context: context,
+                      builder: (context) => DriverProfileDialog(
+                        loggedInDriver: _loggedInDriver,
+                        jwtToken: _jwtToken,
+                        onLogout: _logoutDriver,
+                        onProfileUpdated: (updatedDriver) {
+                          setState(() {
+                            _loggedInDriver = updatedDriver;
+                          });
+                        },
+                        showNotification: _showNotification,
+                        getCorrectImageUrl: _getCorrectImageUrl,
+                      ),
+                    );
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
                     ),
-                  );
-                },
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Colors.black12,
-                          blurRadius: 4,
-                          offset: Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: CircleAvatar(
-                      radius: 18,
-                      backgroundColor: Colors.white24,
-                      backgroundImage: _loggedInDriver?['profileImageUrl'] != null
-                          ? NetworkImage(_getCorrectImageUrl(_loggedInDriver!['profileImageUrl']))
-                          : null,
-                      child: _loggedInDriver?['profileImageUrl'] == null
-                          ? const Icon(Icons.person, color: Colors.white, size: 20)
-                          : null,
-                    ),
-                  ),
-                ),
-              )
-            else
-              IconButton(
-                icon: const Icon(Icons.login, color: Colors.white),
-                onPressed: () {
-                  showDialog(
-                    context: context,
-                    builder: (context) => DriverLoginModal(
-                      isDriverLive: _isDriverLive,
-                      onLoginSuccess: _handleLoginSuccess,
-                      onPendingApproval: (email) {
-                        _showApprovalGuidanceDialog(email);
-                      },
-                      onSignUpPressed: () {
-                        showDialog(
-                          context: context,
-                          builder: (context) => DriverSignupModal(
-                            showNotification: _showNotification,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Colors.black12,
+                            blurRadius: 4,
+                            offset: Offset(0, 2),
                           ),
-                        );
-                      },
-                      showNotification: _showNotification,
-                    ),
-                  );
-                },
-              ),
-            IconButton(
-              icon: const Icon(Icons.home_rounded, color: Colors.white),
-              tooltip: "Back to Home",
-              onPressed: () {
-                if (_jwtToken != null) {
-                  _showDriverLogoutRequiredDialog();
-                } else {
-                  _navigateBackToWelcome();
-                }
-              },
-            ),
-          ] else ...[
-            IconButton(
-              icon: const Icon(Icons.home_rounded, color: Colors.white),
-              tooltip: "Back to Home",
-              onPressed: () {
-                _navigateBackToWelcome();
-              },
-            ),
-          ],
-        ],
-      ),
-      body: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            color: AppColors.primaryBlue,
-            padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
-            child: const Column(
-              children: [
-                Text(
-                  'See Who is Live Near You',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                SizedBox(height: 5),
-                Text(
-                  'Local drivers. Real-time availability. Call directly',
-                  style: TextStyle(color: Colors.white70, fontSize: 12),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: Stack(
-              children: [
-                // --- MAPBOX MAP CANVAS ---
-                FlutterMap(
-                  mapController: _mapController,
-                  options: MapOptions(
-                    initialCenter: const LatLng(51.5074, -0.1278), // London
-                    initialZoom: 13.0,
-                    minZoom: 3.0, // Allows seeing the whole world view
-                    maxZoom: 18.0, // Hard limit to prevent zooming into grey void 404s
-                    onTap: (tapPosition, point) {
-                      setState(() {
-                        _selectedDriver = null;
-                        _showAddressTooltip = false;
-                      });
-                    },
-                    cameraConstraint: CameraConstraint.contain(
-                      bounds: LatLngBounds(
-                        const LatLng(-85.05112878, -180.0),
-                        const LatLng(85.05112878, 180.0),
+                        ],
+                      ),
+                      child: CircleAvatar(
+                        radius: 18,
+                        backgroundColor: Colors.white24,
+                        backgroundImage:
+                            _loggedInDriver?['profileImageUrl'] != null
+                            ? NetworkImage(
+                                _getCorrectImageUrl(
+                                  _loggedInDriver!['profileImageUrl'],
+                                ),
+                              )
+                            : null,
+                        child: _loggedInDriver?['profileImageUrl'] == null
+                            ? const Icon(
+                                Icons.person,
+                                color: Colors.white,
+                                size: 20,
+                              )
+                            : null,
                       ),
                     ),
-                    interactionOptions: const InteractionOptions(
-                      flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+                  ),
+                )
+              else
+                IconButton(
+                  icon: const Icon(Icons.login, color: Colors.white),
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (context) => DriverLoginModal(
+                        isDriverLive: _isDriverLive,
+                        onLoginSuccess: _handleLoginSuccess,
+                        onPendingApproval: (email) {
+                          _showApprovalGuidanceDialog(email);
+                        },
+                        onSignUpPressed: () {
+                          showDialog(
+                            context: context,
+                            builder: (context) => DriverSignupModal(
+                              showNotification: _showNotification,
+                            ),
+                          );
+                        },
+                        showNotification: _showNotification,
+                      ),
+                    );
+                  },
+                ),
+              IconButton(
+                icon: const Icon(Icons.home_rounded, color: Colors.white),
+                tooltip: "Back to Home",
+                onPressed: () {
+                  if (_jwtToken != null) {
+                    _showDriverLogoutRequiredDialog();
+                  } else {
+                    _navigateBackToWelcome();
+                  }
+                },
+              ),
+            ] else ...[
+              IconButton(
+                icon: const Icon(Icons.home_rounded, color: Colors.white),
+                tooltip: "Back to Home",
+                onPressed: () {
+                  _navigateBackToWelcome();
+                },
+              ),
+            ],
+          ],
+        ),
+        body: Column(
+          children: [
+            Container(
+              width: double.infinity,
+              color: AppColors.primaryBlue,
+              padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
+              child: const Column(
+                children: [
+                  Text(
+                    'See Who is Live Near You',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                  children: [
-                    TileLayer(
-                      urlTemplate:
-                          'https://api.mapbox.com/styles/v1/${dotenv.env['MAPBOX_USERNAME'] ?? 'mapbox'}/${dotenv.env['MAPBOX_STYLE_ID'] ?? 'streets-v12'}/tiles/512/{z}/{x}/{y}@2x?access_token=${dotenv.env['MAPBOX_ACCESS_TOKEN'] ?? ''}',
-                      tileDimension: 512,
-                      zoomOffset: -1,
-                      maxNativeZoom: 19, // Tells map to digitally scale tiles past level 19 for smooth deep zoom
-                      maxZoom: 19.0,
-                      keepBuffer: 3, // Pre-load tiles in background slightly outside view
-                      panBuffer: 2, // Smoothly lazy-load tiles as you swipe
-                      retinaMode: true, // Enhances sharpness and prevents blurry lines
-                      tileProvider: CachedTileProvider(
-                        headers: {'User-Agent': 'com.example.call_a_van'},
-                      ), // Implements local device caching
-                      userAgentPackageName: 'com.example.call_a_van',
+                  SizedBox(height: 5),
+                  Text(
+                    'Local drivers. Real-time availability. Call directly',
+                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: Stack(
+                children: [
+                  // --- MAPBOX MAP CANVAS (WITH INDUSTRY-GRADE PERFORMANCE TRICKS) ---
+                  Container(
+                    color: const Color(0xFFF0EEE9), // Soft Mapbox beige camouflage background
+                    child: FlutterMap(
+                      mapController: _mapController,
+                      options: MapOptions(
+                        backgroundColor: const Color(0xFFF0EEE9),
+                        initialCenter: const LatLng(51.5074, -0.1278), // London
+                        initialZoom: 13.0,
+                        minZoom: 3.0, // Allows seeing the whole world view
+                        maxZoom: 18.0, // Increased to allow deep zoom without breaking
+                      onTap: (tapPosition, point) {
+                        setState(() {
+                          _selectedDriver = null;
+                          _showAddressTooltip = false;
+                        });
+                      },
+                      cameraConstraint: CameraConstraint.contain(
+                        bounds: LatLngBounds(
+                          const LatLng(-85.05112878, -180.0),
+                          const LatLng(85.05112878, 180.0),
+                        ),
+                      ),
+                      interactionOptions: const InteractionOptions(
+                        flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+                      ),
                     ),
-                    MarkerLayer(
-                      markers: [
-                        // Draw all other active live drivers
-                        ..._onlineDriversList
-                            .where((driver) => driver['id'] != _loggedInDriver?['id'])
-                            .map((driver) {
-                              try {
-                                return DriverMarker(
-                                  driver: driver,
-                                  onTap: () => _selectDriver(driver),
-                                  isOrange: widget.isDriverMode,
-                                );
-                              } catch (_) {
-                                return const Marker(
-                                  width: 0,
-                                  height: 0,
-                                  point: LatLng(0, 0),
-                                  child: SizedBox.shrink(),
-                                );
-                              }
-                            }),
+                    children: [
+                      TileLayer(
+                        urlTemplate:
+                            'https://api.mapbox.com/styles/v1/${dotenv.env['MAPBOX_USERNAME'] ?? 'mapbox'}/${dotenv.env['MAPBOX_STYLE_ID'] ?? 'streets-v12'}/tiles/512/{z}/{x}/{y}@2x?access_token=${dotenv.env['MAPBOX_ACCESS_TOKEN'] ?? ''}',
+                        tileDimension: 512,
+                        zoomOffset: -1,
+                        maxNativeZoom: 19, // Forces digital stretching of previous tiles instantly
+                        maxZoom: 22.0, // Match the MapOptions max zoom
+                        keepBuffer: 3, 
+                        panBuffer: 1, 
+                        // Removed retinaMode because Mapbox @2x natively handles high-res perfectly
+                        tileProvider: NetworkTileProvider(
+                          headers: {'User-Agent': 'com.example.call_a_van'},
+                        ), // NetworkTileProvider is 100x faster than disk cache for immediate loading
+                        userAgentPackageName: 'com.example.call_a_van',
+                      ),
+                      MarkerLayer(
+                        markers: [
+                          // Draw all other active live drivers
+                          ..._onlineDriversList
+                              .where(
+                                (driver) =>
+                                    driver['id'] != _loggedInDriver?['id'],
+                              )
+                              .map((driver) {
+                                try {
+                                  return DriverMarker(
+                                    driver: driver,
+                                    onTap: () => _selectDriver(driver),
+                                    isOrange: widget.isDriverMode,
+                                  );
+                                } catch (_) {
+                                  return const Marker(
+                                    width: 0,
+                                    height: 0,
+                                    point: LatLng(0, 0),
+                                    child: SizedBox.shrink(),
+                                  );
+                                }
+                              }),
 
-                        // Render our distinct personal radar pulse green ring when live
-                        if (_isDriverLive &&
-                            _driverCurrentLocation != null &&
-                            !_driverCurrentLocation!.latitude.isNaN &&
-                            !_driverCurrentLocation!.longitude.isNaN &&
-                            !_driverCurrentLocation!.latitude.isInfinite &&
-                            !_driverCurrentLocation!.longitude.isInfinite)
-                          Marker(
-                            width: 90.0,
-                            height: 90.0,
-                            point: _driverCurrentLocation!,
-                            child: const LiveRadarMarker(isOrange: false), // Always green for own live driver
-                          )
-                        else if (!_isDriverLive &&
-                            _loggedInDriver != null &&
-                            _driverCurrentLocation != null &&
-                            !_driverCurrentLocation!.latitude.isNaN &&
-                            !_driverCurrentLocation!.longitude.isNaN &&
-                            !_driverCurrentLocation!.latitude.isInfinite &&
-                            !_driverCurrentLocation!.longitude.isInfinite)
-                          // Render our last known offline position as a generic grey marker pin!
-                          Marker(
-                            width: 60.0,
-                            height: 60.0,
-                            point: _driverCurrentLocation!,
-                            child: const Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                Icon(
-                                  Icons.circle,
-                                  color: Colors.black26,
-                                  size: 44,
-                                ),
-                                Icon(
-                                  Icons.circle,
-                                  color: Colors.white,
-                                  size: 30,
-                                ),
-                                Icon(
-                                  Icons.circle,
-                                  color: Colors.grey,
-                                  size: 18,
-                                ),
-                              ],
+                          // Render our distinct personal radar pulse green ring when live
+                          if (_isDriverLive &&
+                              _driverCurrentLocation != null &&
+                              !_driverCurrentLocation!.latitude.isNaN &&
+                              !_driverCurrentLocation!.longitude.isNaN &&
+                              !_driverCurrentLocation!.latitude.isInfinite &&
+                              !_driverCurrentLocation!.longitude.isInfinite)
+                            Marker(
+                              width: 90.0,
+                              height: 90.0,
+                              point: _driverCurrentLocation!,
+                              child: const LiveRadarMarker(
+                                isOrange: false,
+                              ), // Always green for own live driver
+                            )
+                          else if (!_isDriverLive &&
+                              _loggedInDriver != null &&
+                              _driverCurrentLocation != null &&
+                              !_driverCurrentLocation!.latitude.isNaN &&
+                              !_driverCurrentLocation!.longitude.isNaN &&
+                              !_driverCurrentLocation!.latitude.isInfinite &&
+                              !_driverCurrentLocation!.longitude.isInfinite)
+                            // Render our last known offline position as a generic grey marker pin!
+                            Marker(
+                              width: 60.0,
+                              height: 60.0,
+                              point: _driverCurrentLocation!,
+                              child: const Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.circle,
+                                    color: Colors.black26,
+                                    size: 44,
+                                  ),
+                                  Icon(
+                                    Icons.circle,
+                                    color: Colors.white,
+                                    size: 30,
+                                  ),
+                                  Icon(
+                                    Icons.circle,
+                                    color: Colors.grey,
+                                    size: 18,
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                        if (!widget.isDriverMode &&
-                            _userCurrentLocation != null &&
-                            !_userCurrentLocation!.latitude.isNaN &&
-                            !_userCurrentLocation!.longitude.isNaN &&
-                            !_userCurrentLocation!.latitude.isInfinite &&
-                            !_userCurrentLocation!.longitude.isInfinite)
-                          Marker(
-                            width: 40.0,
-                            height: 40.0,
-                            point: _userCurrentLocation!,
-                            child: UserLocationMarkerWidget(
-                              onTap: () {
-                                _fetchUserAddress(_userCurrentLocation!);
-                              },
+                          if (!widget.isDriverMode &&
+                              _userCurrentLocation != null &&
+                              !_userCurrentLocation!.latitude.isNaN &&
+                              !_userCurrentLocation!.longitude.isNaN &&
+                              !_userCurrentLocation!.latitude.isInfinite &&
+                              !_userCurrentLocation!.longitude.isInfinite)
+                            Marker(
+                              width: 40.0,
+                              height: 40.0,
+                              point: _userCurrentLocation!,
+                              child: UserLocationMarkerWidget(
+                                onTap: () {
+                                  _fetchUserAddress(_userCurrentLocation!);
+                                },
+                              ),
                             ),
-                          ),
-                        if (!widget.isDriverMode &&
-                            _userCurrentLocation != null &&
-                            _showAddressTooltip &&
-                            !_userCurrentLocation!.latitude.isNaN &&
-                            !_userCurrentLocation!.longitude.isNaN &&
-                            !_userCurrentLocation!.latitude.isInfinite &&
-                            !_userCurrentLocation!.longitude.isInfinite)
-                          Marker(
-                            width: 220.0,
-                            height: 80.0,
-                            point: _userCurrentLocation!,
-                            alignment: Alignment.topCenter,
-                            child: UserAddressTooltip(
-                              address: _userAddress ?? "Loading address...",
-                              onClose: () {
-                                setState(() {
-                                  _showAddressTooltip = false;
-                                });
-                              },
+                          if (!widget.isDriverMode &&
+                              _userCurrentLocation != null &&
+                              _showAddressTooltip &&
+                              !_userCurrentLocation!.latitude.isNaN &&
+                              !_userCurrentLocation!.longitude.isNaN &&
+                              !_userCurrentLocation!.latitude.isInfinite &&
+                              !_userCurrentLocation!.longitude.isInfinite)
+                            Marker(
+                              width: 220.0,
+                              height: 80.0,
+                              point: _userCurrentLocation!,
+                              alignment: Alignment.topCenter,
+                              child: UserAddressTooltip(
+                                address: _userAddress ?? "Loading address...",
+                                onClose: () {
+                                  setState(() {
+                                    _showAddressTooltip = false;
+                                  });
+                                },
+                              ),
                             ),
-                          ),
-                        if (_selectedDriver != null)
-                          _buildSelectedDriverPopupMarker(),
-                      ],
-                    ),
-                  ],
+                          if (_selectedDriver != null)
+                            _buildSelectedDriverPopupMarker(),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
 
                 // --- TOP-RIGHT COMPASS ---
-                Positioned(
-                  top: 16,
-                  right: 16,
-                  child: Container(
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black12,
-                          blurRadius: 4,
-                          offset: Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: IconButton(
-                      icon: const Icon(
-                        Icons.navigation,
-                        color: Colors.black54,
-                        size: 20,
-                      ),
-                      onPressed: () {
-                        if (widget.isDriverMode) {
-                          if (_driverCurrentLocation != null) {
-                            _mapController.move(_driverCurrentLocation!, 14.0);
-                          } else {
-                            _showNotification(
-                              "Your current location is not available.",
-                              isError: true,
-                            );
-                          }
-                        } else {
-                          if (_userCurrentLocation != null) {
-                            _mapController.move(_userCurrentLocation!, 14.0);
-                          } else {
-                            _enableUserLocation();
-                          }
-                        }
-                      },
-                    ),
-                  ),
-                ),
-
-                // --- BOTTOM-CENTER DYNAMIC CAPSULE PILL OVERLAY ---
-                if (_selectedDriver == null)
                   Positioned(
-                    bottom: (widget.isDriverMode || _userCurrentLocation == null) ? 90 : 16,
-                    left: 0,
-                    right: 0,
-                    child: Center(
-                      child: StatusCapsule(
-                        isDriverMode: widget.isDriverMode,
-                        isDriverLive: _isDriverLive,
-                        onlineDriversList: _onlineDriversList,
-                      ),
-                    ),
-                  ),
-
-                // --- DRIVER BOTTOM BAR ---
-                if (widget.isDriverMode)
-                  Positioned(
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    child: DriverBottomBar(
-                      jwtToken: _jwtToken,
-                      isDriverLive: _isDriverLive,
-                      onLoginSuccess: _handleLoginSuccess,
-                      onPendingApproval: _showApprovalGuidanceDialog,
-                      showNotification: _showNotification,
-                      onToggleLiveStatus: _toggleLiveStatus,
-                    ),
-                  )
-                // --- USER BOTTOM BAR OVERLAY ---
-                else if (_userCurrentLocation == null)
-                  Positioned(
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
+                    top: 16,
+                    right: 16,
                     child: Container(
-                      padding: const EdgeInsets.all(12),
-                      color: AppColors.primaryBlue,
-                      child: SizedBox(
-                        width: double.infinity,
-                        height: 50,
-                        child: ElevatedButton.icon(
-                          onPressed: _isLocatingUser ? () {} : _enableUserLocation,
-                          icon: _isLocatingUser
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black12,
+                            blurRadius: 4,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: IconButton(
+                        icon: const Icon(
+                          Icons.navigation,
+                          color: Colors.black54,
+                          size: 20,
+                        ),
+                        onPressed: () {
+                          if (widget.isDriverMode) {
+                            if (_driverCurrentLocation != null) {
+                              _mapController.move(
+                                _driverCurrentLocation!,
+                                14.0,
+                              );
+                            } else {
+                              _showNotification(
+                                "Your current location is not available.",
+                                isError: true,
+                              );
+                            }
+                          } else {
+                            if (_userCurrentLocation != null) {
+                              _mapController.move(_userCurrentLocation!, 14.0);
+                            } else {
+                              _enableUserLocation();
+                            }
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+
+                  // --- BOTTOM-CENTER DYNAMIC CAPSULE PILL OVERLAY ---
+                  if (_selectedDriver == null)
+                    Positioned(
+                      bottom:
+                          (widget.isDriverMode || _userCurrentLocation == null)
+                          ? 90
+                          : 16,
+                      left: 0,
+                      right: 0,
+                      child: Center(
+                        child: StatusCapsule(
+                          isDriverMode: widget.isDriverMode,
+                          isDriverLive: _isDriverLive,
+                          onlineDriversList: _onlineDriversList,
+                        ),
+                      ),
+                    ),
+
+                  // --- DRIVER BOTTOM BAR ---
+                  if (widget.isDriverMode)
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      child: DriverBottomBar(
+                        jwtToken: _jwtToken,
+                        isDriverLive: _isDriverLive,
+                        onLoginSuccess: _handleLoginSuccess,
+                        onPendingApproval: _showApprovalGuidanceDialog,
+                        showNotification: _showNotification,
+                        onToggleLiveStatus: _toggleLiveStatus,
+                      ),
+                    )
+                  // --- USER BOTTOM BAR OVERLAY ---
+                  else if (_userCurrentLocation == null)
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        color: AppColors.primaryBlue,
+                        child: SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: ElevatedButton.icon(
+                            onPressed: _isLocatingUser
+                                ? () {}
+                                : _enableUserLocation,
+                            icon: _isLocatingUser
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons.my_location,
                                     color: Colors.white,
                                   ),
-                                )
-                              : const Icon(Icons.my_location, color: Colors.white),
-                          label: Text(
-                            _isLocatingUser ? "Locating..." : "Enable Location",
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
+                            label: Text(
+                              _isLocatingUser
+                                  ? "Locating..."
+                                  : "Enable Location",
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
                             ),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.successGreen,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.successGreen,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              elevation: 2,
                             ),
-                            elevation: 2,
                           ),
                         ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ));
+    );
   }
 }

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../core/app_colors.dart';
 import 'home_screen.dart';
 
@@ -22,6 +23,15 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
 
   Future<void> _checkSavedSession() async {
     try {
+      // First, ask for location permission immediately when the app opens
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (serviceEnabled) {
+        LocationPermission permission = await Geolocator.checkPermission();
+        if (permission == LocationPermission.denied) {
+          await Geolocator.requestPermission();
+        }
+      }
+
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('jwt_token');
       final driverJson = prefs.getString('logged_in_driver');
