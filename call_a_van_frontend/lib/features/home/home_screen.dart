@@ -618,6 +618,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       // Get initial position quickly to center map
       final Position position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
+        forceAndroidLocationManager: true,
       );
       if (mounted) {
         setState(() {
@@ -630,8 +631,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       _userLocationSubscription =
           Geolocator.getPositionStream(
             locationSettings: const LocationSettings(
-              accuracy: LocationAccuracy.high,
-              distanceFilter: 5,
+              accuracy: LocationAccuracy.high, // 'high' prevents the Wi-Fi popup while keeping great precision
+              distanceFilter: 1, // Still perfectly tracking 1-meter steps!
             ),
           ).listen(
             (Position pos) {
@@ -695,7 +696,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     try {
       await _userLocationSubscription?.cancel();
       
-      final Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      final Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high, forceAndroidLocationManager: true);
       if (mounted) {
         setState(() {
           _userCurrentLocation = LatLng(position.latitude, position.longitude);
@@ -704,7 +705,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       }
 
       _userLocationSubscription = Geolocator.getPositionStream(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 5),
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 1),
       ).listen((Position pos) {
         if (mounted) {
           setState(() {
@@ -951,7 +952,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       }
 
       // Fetch and broadcast initial location asynchronously (non-blocking) to show online immediately
-      Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high)
+      Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high, forceAndroidLocationManager: true)
           .then((position) {
             final lat = position.latitude;
             final lng = position.longitude;
@@ -988,8 +989,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       late LocationSettings locationSettings;
       if (defaultTargetPlatform == TargetPlatform.android) {
         locationSettings = AndroidSettings(
-          accuracy: LocationAccuracy.high,
-          distanceFilter: 2,
+          accuracy: LocationAccuracy.high, // 'high' prevents Wi-Fi popup
+          distanceFilter: 1, // Retains beautiful 1-meter tracking
           forceLocationManager: true,
           foregroundNotificationConfig: const ForegroundNotificationConfig(
             notificationText: "You are currently visible to customers.",
@@ -1001,14 +1002,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         locationSettings = AppleSettings(
           accuracy: LocationAccuracy.high,
           activityType: ActivityType.automotiveNavigation,
-          distanceFilter: 2,
+          distanceFilter: 1,
           pauseLocationUpdatesAutomatically: false,
           showBackgroundLocationIndicator: true,
         );
       } else {
         locationSettings = const LocationSettings(
           accuracy: LocationAccuracy.high,
-          distanceFilter: 2,
+          distanceFilter: 1,
         );
       }
 
@@ -1197,7 +1198,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _showNotification("Logged out successfully.", isError: false);
 
     if (mounted) {
-      _navigateBackToWelcome();
+      // Just stay on the screen in Customer mode instead of pushing WelcomeScreen
+      setState(() {
+        // We remain on HomeScreen but with loggedInDriver cleared.
+      });
     }
   }
 
@@ -1229,17 +1233,67 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
+  String _getHeaderTitle() {
+    if (widget.isDriverMode) {
+      if (_loggedInDriver != null) {
+        return _isDriverLive ? 'You are Live on the Map' : 'You are Currently Offline';
+      }
+      return 'Join the Driver Network';
+    }
+    return 'See Who is Live Near You';
+  }
+
+  String _getHeaderSubtitle() {
+    if (widget.isDriverMode) {
+      if (_loggedInDriver != null) {
+        return _isDriverLive
+            ? 'Customers and other drivers can see you.'
+            : 'Turn on your location to become visible.';
+      }
+      return 'Log in to securely broadcast your live location.';
+    }
+    return 'Local drivers. Real-time availability. Call directly.';
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop:
-          _jwtToken !=
-          null, // Let system pop to background ONLY if driver is logged in
-      onPopInvoked: (didPop) {
-        if (didPop) return; // Handled naturally (system exited to home screen)
+      canPop: false, // Never pop immediately
+      onPopInvoked: (didPop) async {
+        if (didPop) return;
 
-        // For customers or guests, intercept the back button and slide back smoothly
-        _navigateBackToWelcome();
+        if (_jwtToken != null) {
+          // Logged-in driver -> Show confirmation dialog
+          final shouldExit = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              title: const Text("Exit CallAVAN", style: TextStyle(fontWeight: FontWeight.bold)),
+              content: const Text("Do you really want to exit the app?"),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: Text("No", style: TextStyle(color: Colors.grey[700], fontWeight: FontWeight.bold)),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.redAccent,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: const Text("Yes", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          );
+
+          if (shouldExit == true) {
+            SystemNavigator.pop(); // Safely close the app
+          }
+        } else {
+          // Customers or guests -> just slide back to Welcome Screen
+          _navigateBackToWelcome();
+        }
       },
       child: Scaffold(
         backgroundColor: AppColors.backgroundGrey,
@@ -1362,20 +1416,20 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               width: double.infinity,
               color: AppColors.primaryBlue,
               padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
-              child: const Column(
+              child: Column(
                 children: [
                   Text(
-                    'See Who is Live Near You',
-                    style: TextStyle(
+                    _getHeaderTitle(),
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  SizedBox(height: 5),
+                  const SizedBox(height: 5),
                   Text(
-                    'Local drivers. Real-time availability. Call directly',
-                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                    _getHeaderSubtitle(),
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
                   ),
                 ],
               ),

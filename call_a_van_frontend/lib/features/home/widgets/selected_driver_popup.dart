@@ -21,16 +21,19 @@ class SelectedDriverPopupMarker extends Marker {
             double.tryParse(driver['longitude']?.toString() ?? '') ?? 0.0,
           ),
           width: 260.0,
-          height: isDriverMode ? 130.0 : 290.0,
+          height: 400.0, // Give plenty of height to avoid overflow centering
           alignment: _calculateAlignment(driver, mapController, isDriverMode, context),
-          child: SelectedDriverPopupCard(
-            driver: driver,
-            address: address,
-            isDriverMode: isDriverMode,
-            onClose: onClose,
-            onCall: onCall,
-            getCorrectImageUrl: getCorrectImageUrl,
-            showBelow: _calculateAlignment(driver, mapController, isDriverMode, context).y == -1.0,
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: SelectedDriverPopupCard(
+              driver: driver,
+              address: address,
+              isDriverMode: isDriverMode,
+              onClose: onClose,
+              onCall: onCall,
+              getCorrectImageUrl: getCorrectImageUrl,
+              showBelow: false, // Always show above the pin
+            ),
           ),
         );
 
@@ -47,30 +50,12 @@ class SelectedDriverPopupMarker extends Marker {
       return Alignment.topCenter;
     }
 
+    // Always keep the marker perfectly centered horizontally so the arrow points directly at the icon
     double alignX = 0.0;
-    double alignY = 1.0; // default alignment (above pin)
-    try {
-      final Offset screenPoint = mapController.camera.latLngToScreenOffset(LatLng(lat, lng));
-      final double screenWidth = MediaQuery.of(context).size.width;
 
-      // 1. Vertical check (card height + indicator + padding)
-      final double boundaryHeight = isDriverMode ? 130 : 300;
-      if (screenPoint.dy < boundaryHeight) {
-        alignY = -1.0; // Show below the pin
-      } else {
-        alignY = 1.0; // Show above the pin
-      }
-
-      // 2. Horizontal check (card width is 260)
-      const double halfWidth = 135.0;
-      if (screenPoint.dx < halfWidth) {
-        alignX = -0.6; // Shift right
-      } else if (screenWidth - screenPoint.dx < halfWidth) {
-        alignX = 0.6; // Shift left
-      }
-    } catch (_) {}
-
-    return Alignment(alignX, alignY);
+    // -1.0 for Y (Alignment.topCenter) in flutter_map anchors the BOTTOM of the marker
+    // to the LatLng coordinate, making the entire marker hang UPWARD (above the pin).
+    return Alignment(alignX, -1.0);
   }
 }
 
@@ -439,8 +424,8 @@ class SelectedDriverPopupCard extends StatelessWidget {
               height: 7,
             ),
           ),
-          // Small gap to float it cleanly above the van icon
-          const SizedBox(height: 25),
+          // Exact 20px gap so the arrow tip perfectly touches the top of the 38px driver icon
+          const SizedBox(height: 20),
         ],
       ],
     );
