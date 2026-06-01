@@ -1198,10 +1198,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _showNotification("Logged out successfully.", isError: false);
 
     if (mounted) {
-      // Just stay on the screen in Customer mode instead of pushing WelcomeScreen
-      setState(() {
-        // We remain on HomeScreen but with loggedInDriver cleared.
-      });
+      // User explicitly requested to redirect to WelcomeScreen on logout
+      _navigateBackToWelcome();
     }
   }
 

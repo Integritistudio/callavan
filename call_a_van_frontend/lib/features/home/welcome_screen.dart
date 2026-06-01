@@ -80,10 +80,13 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             children: [
               Hero(
                 tag: 'app_logo',
-                child: Image.asset(
-                  'assets/logo.png',
-                  height: 90,
-                  fit: BoxFit.contain,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40.0),
+                  child: Image.asset(
+                    'assets/logo.png',
+                    height: 90,
+                    fit: BoxFit.contain,
+                  ),
                 ),
               ),
               const SizedBox(height: 24),
@@ -113,10 +116,13 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               // --- LOGO SECTION ---
               Hero(
                 tag: 'app_logo',
-                child: Image.asset(
-                  'assets/logo.png',
-                  height: 90,
-                  fit: BoxFit.contain,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40.0),
+                  child: Image.asset(
+                    'assets/logo.png',
+                    height: 90,
+                    fit: BoxFit.contain,
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
