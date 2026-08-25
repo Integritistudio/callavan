@@ -3,33 +3,35 @@ const path = require('path');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const Driver = require('../models/driverModel');
+const cloudinary = require('cloudinary').v2;
 
-// Securely decodes a base64 image string and writes it to static server disk
-const saveBase64Image = (base64Str, filename, host) => {
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+// Securely decodes a base64 image string and uploads it to Cloudinary CDN
+const uploadToCloudinary = async (base64Str, filename) => {
   if (!base64Str || !filename) return null;
   
   try {
-    // 1. Resolve and create public/uploads directory path if missing
-    const uploadDir = path.join(__dirname, '../public/uploads');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
+    // 1. Construct standard Data URI format required by Cloudinary
+    const dataUri = `data:image/jpeg;base64,${base64Str}`;
     
-    // 2. Generate a highly secure, unique filename to prevent duplicates or directory attacks
-    const cleanExt = path.extname(filename) || '.jpg';
-    const cleanFilename = `img_${Date.now()}_${Math.random().toString(36).substring(2, 7)}${cleanExt}`;
-    const filePath = path.join(uploadDir, cleanFilename);
+    // 2. Generate a secure, unique identifier
+    const publicId = `img_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     
-    // 3. Decode base64 content to standard binary buffer
-    const buffer = Buffer.from(base64Str, 'base64');
+    // 3. Upload directly to Cloudinary servers
+    const result = await cloudinary.uploader.upload(dataUri, {
+      folder: 'call_a_van_uploads',
+      public_id: publicId,
+    });
     
-    // 4. Save file to server disk
-    fs.writeFileSync(filePath, buffer);
-    
-    // 5. Construct the public HTTP static asset URL
-    return `http://${host}/uploads/${cleanFilename}`;
+    // 4. Return the permanent, secure CDN URL
+    return result.secure_url;
   } catch (error) {
-    console.error('Failed to save base64 image on server:', error);
+    console.error('Failed to upload image to Cloudinary:', error);
     return null;
   }
 };
@@ -73,9 +75,9 @@ exports.signup = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
-    // 4. Process and decode files if sent by Flutter frontend
-    const profileImageUrl = saveBase64Image(profileImageBase64, profileImageName, req.headers.host);
-    const vanImageUrl = saveBase64Image(vanImageBase64, vanImageName, req.headers.host);
+    // 4. Process and decode files if sent by Flutter frontend (now via Cloudinary)
+    const profileImageUrl = await uploadToCloudinary(profileImageBase64, profileImageName);
+    const vanImageUrl = await uploadToCloudinary(vanImageBase64, vanImageName);
 
     // 5. Invoke model to insert row into PostgreSQL
     const newDriver = await Driver.create({
@@ -264,14 +266,14 @@ exports.updateProfile = async (req, res) => {
 
     // 3. Decode base64 image and save if a new one was uploaded
     if (profileImageBase64 && profileImageName) {
-      const newUrl = saveBase64Image(profileImageBase64, profileImageName, req.headers.host);
+      const newUrl = await uploadToCloudinary(profileImageBase64, profileImageName);
       if (newUrl) {
         profileImageUrl = newUrl;
       }
     }
 
     if (vanImageBase64 && vanImageName) {
-      const newVanUrl = saveBase64Image(vanImageBase64, vanImageName, req.headers.host);
+      const newVanUrl = await uploadToCloudinary(vanImageBase64, vanImageName);
       if (newVanUrl) {
         vanImageUrl = newVanUrl;
       }

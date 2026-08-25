@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -315,50 +317,86 @@ class _DriverProfileDialogState extends State<DriverProfileDialog> {
           const SizedBox(height: 8),
           GestureDetector(
             onTap: onChoose,
-            child: Container(
-              height: 140,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF0F7FF),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.primaryBlue.withOpacity(0.3), width: 1),
-                image: newImageBase64 != null
-                    ? DecorationImage(
-                        image: MemoryImage(base64Decode(newImageBase64)),
-                        fit: BoxFit.cover,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                height: 140,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0F7FF),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.primaryBlue.withOpacity(0.3), width: 1),
+                ),
+                child: newImageBase64 != null
+                    // Newly picked image (local memory) — show instantly
+                    ? Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Image.memory(base64Decode(newImageBase64), fit: BoxFit.cover),
+                          Align(
+                            alignment: Alignment.bottomRight,
+                            child: Container(
+                              margin: const EdgeInsets.all(8),
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: AppColors.primaryBlue,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 2),
+                              ),
+                              child: const Icon(Icons.edit, color: Colors.white, size: 16),
+                            ),
+                          ),
+                        ],
                       )
                     : (originalImageUrl != null
-                        ? DecorationImage(
-                            image: NetworkImage(widget.getCorrectImageUrl(originalImageUrl)),
-                            fit: BoxFit.cover,
+                        // Existing server image — CachedNetworkImage with shimmer
+                        ? Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              CachedNetworkImage(
+                                imageUrl: widget.getCorrectImageUrl(originalImageUrl),
+                                fit: BoxFit.cover,
+                                placeholder: (context, url) => Shimmer.fromColors(
+                                  baseColor: const Color(0xFFE0E0E0),
+                                  highlightColor: const Color(0xFFF5F5F5),
+                                  child: Container(color: const Color(0xFFE0E0E0)),
+                                ),
+                                errorWidget: (context, url, error) => Center(
+                                  child: Icon(Icons.broken_image,
+                                      color: AppColors.primaryBlue.withOpacity(0.4), size: 40),
+                                ),
+                              ),
+                              Align(
+                                alignment: Alignment.bottomRight,
+                                child: Container(
+                                  margin: const EdgeInsets.all(8),
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primaryBlue,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: Colors.white, width: 2),
+                                  ),
+                                  child: const Icon(Icons.edit, color: Colors.white, size: 16),
+                                ),
+                              ),
+                            ],
                           )
-                        : null),
+                        // No image at all — show upload prompt
+                        : Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.camera_alt, color: AppColors.primaryBlue.withOpacity(0.6), size: 32),
+                              const SizedBox(height: 8),
+                              Text(
+                                "Tap to upload image",
+                                style: TextStyle(
+                                    color: AppColors.primaryBlue.withOpacity(0.8),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          )),
               ),
-              child: (newImageBase64 == null && originalImageUrl == null)
-                  ? Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.camera_alt, color: AppColors.primaryBlue.withOpacity(0.6), size: 32),
-                        const SizedBox(height: 8),
-                        Text(
-                          "Tap to upload image",
-                          style: TextStyle(color: AppColors.primaryBlue.withOpacity(0.8), fontSize: 12, fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    )
-                  : Align(
-                      alignment: Alignment.bottomRight,
-                      child: Container(
-                        margin: const EdgeInsets.all(8),
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: AppColors.primaryBlue,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 2),
-                        ),
-                        child: const Icon(Icons.edit, color: Colors.white, size: 16),
-                      ),
-                    ),
             ),
           ),
         ],
@@ -410,12 +448,23 @@ class _DriverProfileDialogState extends State<DriverProfileDialog> {
           child: CircleAvatar(
             radius: 45,
             backgroundColor: AppColors.primaryBlue.withOpacity(0.05),
-            backgroundImage: _currentDriver['profileImageUrl'] != null
-                ? NetworkImage(widget.getCorrectImageUrl(_currentDriver['profileImageUrl'])) as ImageProvider
-                : null,
-            child: _currentDriver['profileImageUrl'] == null
-                ? const Icon(Icons.person, size: 45, color: AppColors.primaryBlue)
-                : null,
+            child: _currentDriver['profileImageUrl'] != null
+                ? ClipOval(
+                    child: CachedNetworkImage(
+                      imageUrl: widget.getCorrectImageUrl(_currentDriver['profileImageUrl']),
+                      width: 90,
+                      height: 90,
+                      fit: BoxFit.cover,
+                      placeholder: (context, url) => Shimmer.fromColors(
+                        baseColor: const Color(0xFFE0E0E0),
+                        highlightColor: const Color(0xFFF5F5F5),
+                        child: Container(width: 90, height: 90, color: const Color(0xFFE0E0E0)),
+                      ),
+                      errorWidget: (context, url, error) =>
+                          const Icon(Icons.person, size: 45, color: AppColors.primaryBlue),
+                    ),
+                  )
+                : const Icon(Icons.person, size: 45, color: AppColors.primaryBlue),
           ),
         ),
         const SizedBox(height: 16),
@@ -543,14 +592,32 @@ class _DriverProfileDialogState extends State<DriverProfileDialog> {
                 child: CircleAvatar(
                   radius: 45,
                   backgroundColor: AppColors.primaryBlue.withOpacity(0.05),
-                  backgroundImage: _newProfileImageBase64 != null
-                      ? MemoryImage(base64Decode(_newProfileImageBase64!))
+                  child: _newProfileImageBase64 != null
+                      ? ClipOval(
+                          child: Image.memory(
+                            base64Decode(_newProfileImageBase64!),
+                            width: 90,
+                            height: 90,
+                            fit: BoxFit.cover,
+                          ),
+                        )
                       : (_currentDriver['profileImageUrl'] != null
-                          ? NetworkImage(widget.getCorrectImageUrl(_currentDriver['profileImageUrl'])) as ImageProvider
-                          : null),
-                  child: (_newProfileImageBase64 == null && _currentDriver['profileImageUrl'] == null)
-                      ? const Icon(Icons.person, size: 45, color: AppColors.primaryBlue)
-                      : null,
+                          ? ClipOval(
+                              child: CachedNetworkImage(
+                                imageUrl: widget.getCorrectImageUrl(_currentDriver['profileImageUrl']),
+                                width: 90,
+                                height: 90,
+                                fit: BoxFit.cover,
+                                placeholder: (context, url) => Shimmer.fromColors(
+                                  baseColor: const Color(0xFFE0E0E0),
+                                  highlightColor: const Color(0xFFF5F5F5),
+                                  child: Container(width: 90, height: 90, color: const Color(0xFFE0E0E0)),
+                                ),
+                                errorWidget: (context, url, error) =>
+                                    const Icon(Icons.person, size: 45, color: AppColors.primaryBlue),
+                              ),
+                            )
+                          : const Icon(Icons.person, size: 45, color: AppColors.primaryBlue)),
                 ),
               ),
               Positioned(

@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -111,19 +113,26 @@ class SelectedDriverPopupCard extends StatelessWidget {
     if (profileImgUrl != null && profileImgUrl.isNotEmpty) {
       String finalUrl = getCorrectImageUrl(profileImgUrl);
       avatarWidget = ClipOval(
-        child: Image.network(
-          finalUrl,
+        child: CachedNetworkImage(
+          imageUrl: finalUrl,
           width: 40,
           height: 40,
           fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) {
-            return Container(
+          placeholder: (context, url) => Shimmer.fromColors(
+            baseColor: const Color(0xFFE0E0E0),
+            highlightColor: const Color(0xFFF5F5F5),
+            child: Container(
               width: 40,
               height: 40,
-              color: const Color(0xFF2E7D32).withOpacity(0.1),
-              child: const Icon(Icons.person, color: Color(0xFF2E7D32), size: 20),
-            );
-          },
+              color: const Color(0xFFE0E0E0),
+            ),
+          ),
+          errorWidget: (context, url, error) => Container(
+            width: 40,
+            height: 40,
+            color: const Color(0xFF2E7D32).withOpacity(0.1),
+            child: const Icon(Icons.person, color: Color(0xFF2E7D32), size: 20),
+          ),
         ),
       );
     } else {

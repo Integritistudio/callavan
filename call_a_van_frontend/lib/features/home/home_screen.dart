@@ -12,6 +12,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart' as geo;
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:shimmer/shimmer.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
@@ -86,6 +87,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   OverlayEntry? _currentNotificationOverlay;
   Timer? _notificationTimer;
   final MapController _mapController = MapController();
+
+  // --- MAP SKELETON STATE ---
+  // Tracks whether the map has fired its onMapReady event.
+  // While false, the shimmer overlay is displayed on top of the map.
+  bool _isMapReady = false;
 
   Future<void> _loadLastLocation() async {
     try {
@@ -1461,6 +1467,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       interactionOptions: const InteractionOptions(
                         flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
                       ),
+                      onMapReady: () {
+                        // Map has initialised — fade the shimmer overlay out
+                        if (mounted) setState(() => _isMapReady = true);
+                      },
                     ),
                     children: [
                       TileLayer(
@@ -1468,15 +1478,30 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                             'https://api.mapbox.com/styles/v1/${dotenv.env['MAPBOX_USERNAME'] ?? 'mapbox'}/${dotenv.env['MAPBOX_STYLE_ID'] ?? 'streets-v12'}/tiles/512/{z}/{x}/{y}@2x?access_token=${dotenv.env['MAPBOX_ACCESS_TOKEN'] ?? ''}',
                         tileDimension: 512,
                         zoomOffset: -1,
-                        maxNativeZoom: 19, // Forces digital stretching of previous tiles instantly
-                        maxZoom: 22.0, // Match the MapOptions max zoom
-                        keepBuffer: 3, 
-                        panBuffer: 1, 
-                        // Removed retinaMode because Mapbox @2x natively handles high-res perfectly
+                        maxNativeZoom: 19,
+                        maxZoom: 22.0,
+                        keepBuffer: 3,
+                        panBuffer: 1,
                         tileProvider: NetworkTileProvider(
                           headers: {'User-Agent': 'com.example.call_a_van'},
-                        ), // NetworkTileProvider is 100x faster than disk cache for immediate loading
+                        ),
                         userAgentPackageName: 'com.example.call_a_van',
+                        // --- PER-TILE SHIMMER: replaces grey/black patches with a pulsing skeleton ---
+                        tileBuilder: (context, tileWidget, tile) {
+                          return AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 250),
+                            child: tile.readyToDisplay
+                                ? tileWidget
+                                : Shimmer.fromColors(
+                                    key: const ValueKey('shimmer_tile'),
+                                    baseColor: const Color(0xFFE0DDD7),
+                                    highlightColor: const Color(0xFFF5F3EF),
+                                    child: Container(
+                                      color: const Color(0xFFE0DDD7),
+                                    ),
+                                  ),
+                          );
+                        },
                       ),
                       MarkerLayer(
                         markers: [
@@ -1595,6 +1620,44 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     ],
                   ),
                 ),
+
+
+                // --- MAP SKELETON OVERLAY ---
+                // Fades in on launch to cover the black void, then fades out once
+                // the map engine fires onMapReady. Completely non-interactive.
+                if (!_isMapReady)
+                  Positioned.fill(
+                    child: AnimatedOpacity(
+                      opacity: _isMapReady ? 0.0 : 1.0,
+                      duration: const Duration(milliseconds: 600),
+                      curve: Curves.easeOut,
+                      child: Shimmer.fromColors(
+                        baseColor: const Color(0xFFE0DDD7),
+                        highlightColor: const Color(0xFFF5F3EF),
+                        period: const Duration(milliseconds: 1200),
+                        child: Column(
+                          children: List.generate(
+                            20,
+                            (rowIndex) => Expanded(
+                              child: Row(
+                                children: List.generate(
+                                  4,
+                                  (colIndex) => Expanded(
+                                    child: Container(
+                                      margin: const EdgeInsets.all(1),
+                                      decoration: const BoxDecoration(
+                                        color: Color(0xFFE0DDD7),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
 
                 // --- TOP-RIGHT COMPASS ---
                   Positioned(
