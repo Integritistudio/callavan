@@ -62,7 +62,16 @@ exports.signup = async (req, res) => {
       });
     }
 
-    // 2. Query model to verify if the email is already in use
+    // 2. Validate password strength
+    const passwordRegex = /^(?=.*[a-zA-Z])(?=.*\d).+$/;
+    if (password.length < 6 || password.length > 64 || !passwordRegex.test(password)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Please use a stronger password.',
+      });
+    }
+
+    // 3. Query model to verify if the email is already in use
     const existingDriver = await Driver.findByEmail(email);
     if (existingDriver) {
       return res.status(400).json({

@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -6,7 +7,6 @@ const { Server } = require('socket.io');
 const authRoutes = require('./routes/authRoutes');
 const initializeDatabase = require('./config/dbInit');
 const db = require('./config/db');
-require('dotenv').config();
 
 const app = express();
 const server = http.createServer(app);

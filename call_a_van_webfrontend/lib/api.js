@@ -21,6 +21,39 @@ export async function loginDriver({ email, password }) {
   return data;
 }
 
+export async function requestPasswordReset(email) {
+  const res = await fetch(`${BACKEND_URL}/api/drivers/forgot-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to send reset link');
+  return data;
+}
+
+export async function verifyResetOtp(email, otp) {
+  const res = await fetch(`${BACKEND_URL}/api/drivers/verify-reset-token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, otp }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Invalid OTP');
+  return data;
+}
+
+export async function resetPassword(email, otp, newPassword) {
+  const res = await fetch(`${BACKEND_URL}/api/drivers/reset-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, otp, newPassword }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to reset password');
+  return data;
+}
+
 export async function signupDriver(formData) {
   const res = await fetch(`${BACKEND_URL}/api/drivers/signup`, {
     method: 'POST',
@@ -43,7 +76,7 @@ export async function logoutDriver(token) {
 }
 
 export async function updateDriverProfile(token, driverId, formData) {
-  const res = await fetch(`${BACKEND_URL}/api/drivers/${driverId}/profile`, {
+  const res = await fetch(`${BACKEND_URL}/api/drivers/profile`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -78,5 +111,6 @@ export function getCorrectImageUrl(rawUrl) {
       .replace('localhost:5000', new URL(backendUrl).host)
       .replace('127.0.0.1:5000', new URL(backendUrl).host);
   }
-  return `${backendUrl}${rawUrl}`;
+  const separator = rawUrl.startsWith('/') ? '' : '/';
+  return `${backendUrl}${separator}${rawUrl}`;
 }

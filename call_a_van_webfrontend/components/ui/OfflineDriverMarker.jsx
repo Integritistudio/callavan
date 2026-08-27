@@ -1,26 +1,22 @@
 // components/ui/OfflineDriverMarker.jsx
-// Mirrors Flutter's DriverMarker widget — grey circle for offline drivers
+// Mirrors Flutter's OfflineDriverMarker — grey circle for offline drivers
 
-export default function OfflineDriverMarker({ isOrange = false, onClick }) {
-  const color = isOrange ? '#FB8C00' : '#1AB451';
-
+export default function OfflineDriverMarker({ onClick }) {
   return (
     <div
       onClick={onClick}
-      className="relative flex items-center justify-center cursor-pointer"
-      style={{ width: 48, height: 48 }}
+      className="relative flex items-center justify-center rounded-full cursor-pointer hover:scale-105 transition-transform z-10"
+      style={{
+        width: 48,
+        height: 48,
+        backgroundColor: '#9ca3af', // Tailwind gray-400
+        border: '2.5px solid white', // Reduced white outer ring
+        boxShadow: '0 4px 10px rgba(0,0,0,0.3)',
+      }}
     >
-      {/* Outer shadow ring */}
-      <div className="absolute rounded-full bg-black/10" style={{ width: 44, height: 44 }} />
-      {/* White ring */}
-      <div className="absolute rounded-full bg-white" style={{ width: 30, height: 30 }} />
-      {/* Colored center */}
-      <div
-        className="absolute rounded-full flex items-center justify-center text-xs"
-        style={{ width: 18, height: 18, backgroundColor: color }}
-      >
-        <span style={{ fontSize: 10 }}>🚐</span>
-      </div>
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
+        <path d="M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4zM6 18.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm13.5-9l1.96 2.5H17V9.5h2.5zm-1.5 9c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" />
+      </svg>
     </div>
   );
 }

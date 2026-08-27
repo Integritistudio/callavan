@@ -20,20 +20,19 @@
   --color-success-green: var(--success-green);
   --color-background-grey: var(--background-grey);
   --color-map-beige: var(--map-beige);
+  --font-sans: Arial, sans-serif;
 }
 
 /* ─────────────────────────────────────────────────
    GLOBAL RESETS
 ───────────────────────────────────────────────── */
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+/* ─────────────────────────────────────────────────
+   GLOBAL RESETS
+───────────────────────────────────────────────── */
 
 html, body {
   height: 100%;
-  font-family: 'Inter', Arial, Helvetica, sans-serif;
+  font-family: Arial, sans-serif;
   overflow: hidden;
 }
 
@@ -57,11 +56,11 @@ html, body {
 ───────────────────────────────────────────────── */
 @keyframes radar-pulse {
   0% {
-    transform: scale(0.6);
-    opacity: 0.9;
+    transform: scale(1);
+    opacity: 1;
   }
   100% {
-    transform: scale(2.2);
+    transform: scale(2.5);
     opacity: 0;
   }
 }
@@ -69,12 +68,12 @@ html, body {
 .radar-ring {
   position: absolute;
   border-radius: 50%;
-  animation: radar-pulse 1.8s ease-out infinite;
+  animation: radar-pulse 1.2s ease-out infinite;
 }
 
 .radar-ring-1 { animation-delay: 0s; }
-.radar-ring-2 { animation-delay: 0.6s; }
-.radar-ring-3 { animation-delay: 1.2s; }
+.radar-ring-2 { animation-delay: 0.4s; }
+.radar-ring-3 { animation-delay: 0.8s; }
 
 /* ─────────────────────────────────────────────────
    SHIMMER ANIMATION — Map skeleton loader

@@ -17,6 +17,7 @@ import DriverProfileDetailsModal from '@/components/ui/DriverProfileDetailsModal
 import LoginModal from '@/sections/LoginModal/LoginModal';
 import SignupModal from '@/sections/SignupModal/SignupModal';
 import ProfileModal from '@/sections/ProfileModal/ProfileModal';
+import ForgotPasswordModal from '@/sections/ForgotPasswordModal/ForgotPasswordModal';
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || '';
 const MAPBOX_USERNAME = process.env.NEXT_PUBLIC_MAPBOX_USERNAME || 'mapbox';
@@ -33,6 +34,7 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver })
   const [isDriverLive, setIsDriverLive] = useState(false);
 
   const [isMapReady, setIsMapReady] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
   const [viewState, setViewState] = useState({ longitude: -4.2518, latitude: 55.8642, zoom: 11 }); // Glasgow default for replica
 
   const [drivers, setDrivers] = useState([]);
@@ -42,6 +44,7 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver })
 
   const [showLogin, setShowLogin] = useState(false);
   const [showSignup, setShowSignup] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [showHamburger, setShowHamburger] = useState(false); // Mobile menu
   const [viewingDriverProfile, setViewingDriverProfile] = useState(null); // Public profile view
@@ -51,12 +54,31 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver })
   const animFramesRef = useRef({});
 
   useEffect(() => {
+    setIsMounted(true);
     loadSession();
     fetchDrivers();
     initSocket();
     if (!isDriverMode) autoDetectLocation();
-    return () => { stopGPS(); socketRef.current?.disconnect(); };
+
+    // Safety fallback: if Mapbox onLoad never fires (bad token, network block, etc.)
+    // force-hide the skeleton after 4 seconds so the page is never stuck.
+    const mapFallbackTimer = setTimeout(() => {
+      setIsMapReady(true);
+    }, 4000);
+
+    return () => {
+      clearTimeout(mapFallbackTimer);
+      stopGPS();
+      socketRef.current?.disconnect();
+    };
   }, []);
+
+  const handleProfileUpdated = (updatedDriver) => {
+    setLoggedInDriver(updatedDriver);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('logged_in_driver', JSON.stringify(updatedDriver));
+    }
+  };
 
   function loadSession() {
     if (typeof window === 'undefined') return;
@@ -223,7 +245,7 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver })
     setLoggedInDriver(driver);
     localStorage.setItem('jwt_token', token);
     localStorage.setItem('logged_in_driver', JSON.stringify(driver));
-    showNotification('Login successful! Going live...');
+    showNotification('Login successful!');
     handleToggleLive(true);
   }
 
@@ -245,8 +267,8 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver })
     showNotification('Opening dialer & copied number to clipboard.');
   }
 
-  const ownDriverMarkerLat = parseFloat(localStorage?.getItem?.('last_driver_lat'));
-  const ownDriverMarkerLng = parseFloat(localStorage?.getItem?.('last_driver_lng'));
+  const ownDriverMarkerLat = isMounted ? parseFloat(localStorage.getItem('last_driver_lat')) : NaN;
+  const ownDriverMarkerLng = isMounted ? parseFloat(localStorage.getItem('last_driver_lng')) : NaN;
   const hasOwnLocation = jwtToken && loggedInDriver && !isNaN(ownDriverMarkerLat) && !isNaN(ownDriverMarkerLng);
   const profileUrl = loggedInDriver?.profileImageUrl ? getCorrectImageUrl(loggedInDriver.profileImageUrl) : null;
   const liveCount = drivers.filter(d => isLive(d)).length;
@@ -256,31 +278,31 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver })
     <div className="flex flex-col h-screen w-screen overflow-hidden font-sans">
       
       {/* ── HEADER (Solid Blue exact match) ── */}
-      <header className="flex-shrink-0 w-full flex flex-col" style={{ backgroundColor: '#1052c9', minHeight: '180px', padding: '24px 32px 32px 32px' }}>
+      <header className="flex-shrink-0 w-full flex flex-col" style={{ backgroundColor: '#1052c9', minHeight: '180px', padding: '32px 40px' }}>
         {/* Top Nav Line */}
-        <div className="flex justify-between items-start w-full">
+        <div className="flex justify-between items-center w-full">
           {/* Left Logo */}
-          <a href="/" className="inline-block">
+          <a href="/" className="inline-block cursor-pointer">
             <img 
               src="https://cdn.prod.website-files.com/699f24e36021db019f687184/69d5648b03176e73b702b52f_callvan1.png" 
               alt="Call-A-Van.live" 
-              style={{ height: '36px' }}
-              className="object-contain cursor-pointer hover:opacity-90 block"
+              style={{ height: '40px' }}
+              className="object-contain hover:opacity-90 transition-opacity block"
             />
           </a>
 
           {/* Right Actions */}
           <div className="flex items-center gap-6">
             {jwtToken ? (
-              <button onClick={() => setShowProfile(true)} className="w-10 h-10 rounded-full border border-white/50 bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-all overflow-hidden">
-                {profileUrl ? <img src={profileUrl} alt="profile" className="w-full h-full object-cover" /> : "👤"}
+              <button onClick={() => setShowProfile(true)} className="w-10 h-10 rounded-full border border-white/50 bg-white/10 flex items-center justify-center text-white hover:bg-white/30 transition-all cursor-pointer shadow-sm">
+                {profileUrl ? <img src={profileUrl} alt="profile" className="w-full h-full object-cover rounded-full" /> : "👤"}
               </button>
             ) : (
-              <button onClick={() => setShowLogin(true)} className="border border-white/40 text-white hover:bg-white/10 transition-all" style={{ padding: '6px 20px', borderRadius: '4px', fontSize: '15px' }}>
+              <button onClick={() => setShowLogin(true)} className="border border-white/40 text-white hover:bg-white/20 transition-all cursor-pointer shadow-sm font-medium" style={{ backgroundColor: 'rgba(255,255,255,0.1)', padding: '8px 24px', borderRadius: '6px', fontSize: '15px' }}>
                 Driver Login
               </button>
             )}
-            <button onClick={() => setShowHamburger(true)} className="text-white hover:opacity-80 transition-opacity">
+            <button onClick={() => setShowHamburger(true)} className="text-white hover:opacity-75 transition-opacity cursor-pointer">
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
             </button>
           </div>
@@ -305,6 +327,7 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver })
           onClick={() => setSelectedDriver(null)}
           style={{ width: '100%', height: '100%' }}
           attributionControl={false}
+          cursor="default"
         >
           {/* Other Drivers */}
           {drivers.filter((d) => d.id !== loggedInDriver?.id).map((driver) => {
@@ -315,39 +338,121 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver })
               <Marker key={driver.id} latitude={lat} longitude={lng} anchor="center">
                 <div className="relative">
                   {isLive(driver) ? (
-                    <LiveDriverMarker />
+                    <LiveDriverMarker isOrange={!!jwtToken} onClick={(e) => { e.stopPropagation(); handleSelectDriver(driver); }} />
                   ) : (
-                    <OfflineDriverMarker onClick={() => handleSelectDriver(driver)} />
+                    <OfflineDriverMarker onClick={(e) => { e.stopPropagation(); handleSelectDriver(driver); }} />
                   )}
                   {/* Popup */}
-                  {selectedDriver?.id === driver.id && (
-                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50">
-                      <div className="bg-white rounded-lg shadow-lg p-3 w-64 border border-gray-100 text-sm">
-                        <p className="font-bold text-gray-900">{driver.fullName?.split('@')[0] || 'Driver'}</p>
-                        <p className="text-xs text-gray-500 mb-1">{driver.vehicleType || 'Van'}</p>
-                        <p className="text-xs text-gray-700 mb-2 truncate">📍 {selectedDriverAddress || 'Loading...'}</p>
-                        <div className="flex items-center justify-between">
-                          <span className="bg-gray-200 text-gray-600 px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1">
-                            <div className="w-1.5 h-1.5 bg-gray-500 rounded-full"/> {isLive(driver) ? 'Live' : 'Offline'}
-                          </span>
-                          <div className="flex gap-1">
-                            <button onClick={(e) => { e.stopPropagation(); makePhoneCall(driver.mobileNumber); }} className="bg-[#22c55e] hover:bg-[#16a34a] text-white px-2 py-1.5 rounded text-xs font-bold">Call Anyway</button>
-                            <button onClick={(e) => { e.stopPropagation(); setViewingDriverProfile(driver); }} className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1.5 rounded text-xs font-bold">View More</button>
+                  {selectedDriver?.id === driver.id && (() => {
+                    let servicesList = [];
+                    if (driver.services) {
+                      try {
+                        servicesList = typeof driver.services === 'string' ? JSON.parse(driver.services) : driver.services;
+                      } catch(e) {}
+                    }
+                    if (!Array.isArray(servicesList) || servicesList.length === 0) {
+                      servicesList = ['General Van Services'];
+                    }
+                    const isDriverLive = isLive(driver);
+                    const isDriverMode = !!jwtToken; // user is logged in as driver
+                    const displayName = driver.fullName?.split('@')[0] || 'Driver Profile';
+                    const profileImgUrl = driver.profileImageUrl ? getCorrectImageUrl(driver.profileImageUrl) : null;
+                    
+                    return (
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-[20px] z-50">
+                        <div className="bg-white rounded-[12px] shadow-[0_3px_10px_rgba(0,0,0,0.26)] w-[260px] overflow-hidden">
+                          {/* Header */}
+                          <div className="relative p-2.5 pb-1.5 flex items-start gap-2">
+                            {/* Close Button */}
+                            <button onClick={(e) => { e.stopPropagation(); setSelectedDriver(null); }} className="absolute top-2.5 right-2.5 w-5 h-5 bg-black/10 rounded-full flex items-center justify-center cursor-pointer hover:bg-black/20">
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-black/50"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                            </button>
+                            
+                            {/* Avatar */}
+                            <div className="w-10 h-10 rounded-full bg-[#2E7D32]/10 flex items-center justify-center shrink-0 overflow-hidden">
+                              {profileImgUrl ? (
+                                <img src={profileImgUrl} alt="" className="w-full h-full object-cover" />
+                              ) : (
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[#2E7D32]"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                              )}
+                            </div>
+                            
+                            {/* Details */}
+                            <div className="flex-1 min-w-0 pr-6">
+                              <div className="flex items-center gap-1">
+                                <span className="font-bold text-[13px] text-gray-800 truncate">{displayName}</span>
+                                <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold ${isDriverLive ? 'bg-[#E8F5E9] text-[#2E7D32]' : 'bg-[#EEEEEE] text-gray-700'}`}>
+                                  {isDriverLive ? 'Online' : 'Offline'}
+                                </span>
+                              </div>
+                              <div className="text-[10px] text-gray-600 font-medium truncate mt-[1px]">
+                                {driver.companyName || 'Independent Driver'}
+                              </div>
+                            </div>
                           </div>
+                          
+                          {isDriverMode ? (
+                            <>
+                              <div className="h-[0.5px] bg-gray-200 w-full"></div>
+                              <div className="px-2.5 py-2 flex items-center gap-1.5">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-500"><path d="M5 18H3c-.6 0-1-.4-1-1V7c0-.6.4-1 1-1h10c.6 0 1 .4 1 1v11"/><path d="M14 9h4l4 4v5c0 .6-.4 1-1 1h-2"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg>
+                                <span className="text-[10px] font-bold text-gray-800 truncate">Vehicle: {driver.vehicleType || 'N/A'}</span>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="h-[0.5px] bg-gray-200 w-full"></div>
+                              <div className="px-2.5 py-1.5 flex flex-col gap-1">
+                                <button onClick={(e) => { e.stopPropagation(); makePhoneCall(driver.mobileNumber || driver.phoneNumber); }} className="flex items-center gap-1.5 cursor-pointer hover:bg-gray-50 p-0.5 -ml-0.5 rounded w-full text-left">
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-500 shrink-0"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                                  <span className="text-[11px] font-bold text-gray-800">{driver.mobileNumber || driver.phoneNumber || 'N/A'}</span>
+                                </button>
+                                <div className="flex items-start gap-1.5 p-0.5 -ml-0.5">
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-red-500 shrink-0 mt-0.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                                  <span className="text-[10px] text-gray-800 leading-tight line-clamp-2">{selectedDriverAddress || 'Loading address...'}</span>
+                                </div>
+                              </div>
+                              <div className="h-[0.5px] bg-gray-200 w-full"></div>
+                              <div className="p-2.5 pt-1.5 pb-2.5">
+                                <div className="text-[10px] font-bold text-gray-500 mb-1">Services Offered:</div>
+                                <div className="flex flex-col gap-0.5 mb-2">
+                                  {servicesList.slice(0, 3).map((svc, i) => (
+                                    <div key={i} className="flex items-center gap-1.5">
+                                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-[#2E7D32] shrink-0"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                                      <span className="text-[10px] text-gray-800 truncate">{svc}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                                <button onClick={(e) => { e.stopPropagation(); makePhoneCall(driver.mobileNumber || driver.phoneNumber); }} className="w-full bg-[#2E7D32] hover:bg-[#256629] text-white rounded-md h-[34px] flex items-center justify-center gap-1.5 cursor-pointer">
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                                  <span className="text-[12px] font-bold">Call a Driver</span>
+                                </button>
+                              </div>
+                            </>
+                          )}
                         </div>
+                        {/* Downward Triangle */}
+                        <div className="w-0 h-0 border-l-[7px] border-l-transparent border-r-[7px] border-r-transparent border-t-[7px] border-t-white mx-auto -mt-[1px]"></div>
                       </div>
-                      <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-white mx-auto"></div>
-                    </div>
-                  )}
+                    );
+                  })()}
                 </div>
               </Marker>
             );
           })}
 
-          {/* Own Live Marker */}
-          {jwtToken && isDriverLive && hasOwnLocation && (
+          {/* Own Driver Marker (Live or Offline) */}
+          {jwtToken && hasOwnLocation && (
             <Marker latitude={ownDriverMarkerLat} longitude={ownDriverMarkerLng} anchor="center">
-              <LiveDriverMarker />
+              <div className="relative z-20">
+                {isDriverLive ? (
+                  <LiveDriverMarker isOrange={false} />
+                ) : (
+                  <div className="pointer-events-none">
+                    <OfflineDriverMarker />
+                  </div>
+                )}
+              </div>
             </Marker>
           )}
 
@@ -368,41 +473,41 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver })
         </div>
 
         {/* Bottom Left Status Box */}
-        <div className="absolute bottom-6 left-6 z-10 bg-white rounded-xl p-4 shadow-lg border border-gray-100 w-36">
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Status</p>
+        <div className="absolute bottom-10 left-8 z-10 bg-white rounded-xl shadow-lg border border-gray-100 min-w-[160px] p-5">
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Status</p>
           <div className="flex items-center gap-3 mb-2.5">
-            <div className="w-3 h-3 bg-[#22c55e] rounded-full"></div>
-            <p className="text-xs font-medium text-gray-800">{liveCount} Available</p>
+            <div className="w-3.5 h-3.5 bg-[#22c55e] rounded-full shadow-sm"></div>
+            <p className="text-sm font-semibold text-gray-800">{liveCount} Available</p>
           </div>
           <div className="flex items-center gap-3">
-            <div className="w-3 h-3 bg-gray-400 rounded-full"></div>
-            <p className="text-xs font-medium text-gray-800">{offlineCount} Offline</p>
+            <div className="w-3.5 h-3.5 bg-gray-400 rounded-full shadow-sm"></div>
+            <p className="text-sm font-semibold text-gray-800">{offlineCount} Offline</p>
           </div>
         </div>
 
         {/* Bottom Right Live Count */}
-        <div className="absolute bottom-6 right-6 z-10">
-          <div className="bg-white rounded-full py-2.5 px-5 shadow-lg border border-gray-100 flex items-center gap-2.5">
-            <div className="w-2.5 h-2.5 bg-[#22c55e] rounded-full border border-green-600/20"></div>
-            <span className="text-xs font-bold text-gray-800 tracking-wide">{liveCount} Drivers Online Near You</span>
+        <div className="absolute bottom-10 right-8 z-10">
+          <div className="bg-white rounded-full py-3.5 px-6 shadow-lg border border-gray-100 flex items-center gap-3">
+            <div className="w-3.5 h-3.5 bg-[#22c55e] rounded-full border border-green-600/20 shadow-sm"></div>
+            <span className="text-sm font-bold text-gray-800 tracking-wide">{liveCount} Drivers Online Near You</span>
           </div>
         </div>
       </main>
 
       {/* ── FOOTER BAR ── */}
-      <footer className="flex-shrink-0 flex items-center justify-center gap-6 z-20" style={{ backgroundColor: '#1052c9', minHeight: '90px' }}>
+      <footer className="flex-shrink-0 flex items-center justify-center gap-8 z-20" style={{ backgroundColor: '#1052c9', minHeight: '80px' }}>
         {!jwtToken ? (
           <>
-            <button onClick={() => setShowSignup(true)} className="text-white font-bold transition-colors shadow-sm" style={{ backgroundColor: '#144cb8', padding: '12px 28px', borderRadius: '6px', fontSize: '15px' }}>
+            <button onClick={() => setShowSignup(true)} className="text-white font-bold transition-all shadow-md hover:shadow-lg cursor-pointer transform hover:-translate-y-0.5" style={{ backgroundColor: '#144cb8', padding: '14px 36px', borderRadius: '8px', fontSize: '16px' }}>
               Become a Driver
             </button>
-            <button onClick={() => setShowLogin(true)} className="text-white font-bold transition-colors shadow-sm" style={{ backgroundColor: '#1bb54f', padding: '12px 32px', borderRadius: '6px', fontSize: '15px' }}>
+            <button onClick={() => setShowLogin(true)} className="text-white font-bold transition-all shadow-md hover:shadow-lg cursor-pointer transform hover:-translate-y-0.5" style={{ backgroundColor: '#1bb54f', padding: '14px 44px', borderRadius: '8px', fontSize: '16px' }}>
               Go Live
             </button>
           </>
         ) : (
-          <button onClick={() => handleToggleLive(!isDriverLive)} className={`text-white font-bold transition-all shadow-md ${isDriverLive ? 'bg-red-600 hover:bg-red-700' : ''}`} style={{ backgroundColor: isDriverLive ? undefined : '#1bb54f', padding: '12px 40px', borderRadius: '6px', fontSize: '15px' }}>
-            {isDriverLive ? 'Stop Broadcasting' : 'Go Live Now'}
+          <button onClick={() => handleToggleLive(!isDriverLive)} className="text-white font-bold transition-all shadow-md hover:shadow-lg cursor-pointer transform hover:-translate-y-0.5" style={{ backgroundColor: '#1bb54f', padding: '14px 48px', borderRadius: '8px', fontSize: '16px' }}>
+            {isDriverLive ? 'Go Offline' : 'Go Live Now'}
           </button>
         )}
       </footer>
@@ -414,11 +519,18 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver })
           onLoginSuccess={handleLoginSuccess}
           onSignUpPressed={() => { setShowLogin(false); setShowSignup(true); }}
           onPendingApproval={(email) => { setShowLogin(false); showNotification(`Account pending approval.`, false); }}
+          onForgotPassword={() => setShowForgotPassword(true)}
         />
       )}
       {showSignup && <SignupModal onClose={() => setShowSignup(false)} />}
+      {showForgotPassword && (
+        <ForgotPasswordModal 
+          onClose={() => setShowForgotPassword(false)}
+          onBackToLogin={() => { setShowForgotPassword(false); setShowLogin(true); }}
+        />
+      )}
       {showProfile && loggedInDriver && (
-        <ProfileModal driver={loggedInDriver} token={jwtToken} onClose={() => setShowProfile(false)} onLogout={handleLogout} onProfileUpdated={setLoggedInDriver} />
+        <ProfileModal driver={loggedInDriver} token={jwtToken} onClose={() => setShowProfile(false)} onLogout={handleLogout} onProfileUpdated={handleProfileUpdated} />
       )}
       {viewingDriverProfile && (
         <DriverProfileDetailsModal driver={viewingDriverProfile} onClose={() => setViewingDriverProfile(null)} />

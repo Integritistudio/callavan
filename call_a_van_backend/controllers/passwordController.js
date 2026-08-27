@@ -87,8 +87,9 @@ exports.resetPassword = async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'Email, OTP, and New Password are required.' });
     }
 
-    if (newPassword.length < 6 || newPassword.length > 64) {
-      return res.status(400).json({ status: 'error', message: 'Password must be between 6 and 64 characters.' });
+    const passwordRegex = /^(?=.*[a-zA-Z])(?=.*\d).+$/;
+    if (newPassword.length < 6 || newPassword.length > 64 || !passwordRegex.test(newPassword)) {
+      return res.status(400).json({ status: 'error', message: 'Please use a stronger password.' });
     }
 
     // Verify OTP one last time before resetting to ensure security
@@ -131,8 +132,9 @@ exports.changePassword = async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'Current and new passwords are required.' });
     }
 
-    if (newPassword.length < 6 || newPassword.length > 64) {
-      return res.status(400).json({ status: 'error', message: 'New password must be between 6 and 64 characters.' });
+    const passwordRegex = /^(?=.*[a-zA-Z])(?=.*\d).+$/;
+    if (newPassword.length < 6 || newPassword.length > 64 || !passwordRegex.test(newPassword)) {
+      return res.status(400).json({ status: 'error', message: 'Please use a stronger password. ' });
     }
 
     // Fetch the driver to get the current hash

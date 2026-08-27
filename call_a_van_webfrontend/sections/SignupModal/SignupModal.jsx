@@ -18,11 +18,11 @@ function fileToBase64(file) {
   });
 }
 
-function Field({ label, required, children }) {
+function Field({ label, required, children, noMargin }) {
   return (
-    <div className="mb-4">
-      <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-        {label} {required && <span className="text-red-500">*</span>}
+    <div className={noMargin ? '' : 'mb-4'}>
+      <label className="block text-sm font-bold text-gray-900 mb-1">
+        {label} {required && <span className="text-gray-900">*</span>}
       </label>
       {children}
     </div>
@@ -32,7 +32,7 @@ function Field({ label, required, children }) {
 function Input({ ...props }) {
   return (
     <input
-      className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-[#003366] focus:border-[#003366] outline-none transition-all"
+      className="w-full border border-gray-300 bg-[#f4f7fb] rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-[#003366] focus:border-[#003366] outline-none transition-all"
       {...props}
     />
   );
@@ -56,6 +56,7 @@ export default function SignupModal({ onClose }) {
   const [vanImageName, setVanImageName] = useState(null);
   const [loading, setLoading] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   function setField(key, value) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -112,117 +113,145 @@ export default function SignupModal({ onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white w-full max-w-xl rounded-2xl shadow-xl overflow-y-auto max-h-[85vh] p-6 relative animate-modal-in" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/60 z-[9999] flex items-center justify-center py-[5px] px-4" onClick={onClose}>
+      <div className="bg-white w-full max-w-2xl rounded-2xl shadow-xl overflow-y-auto max-h-[calc(100vh-10px)] p-6 md:p-8 relative animate-modal-in [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" onClick={(e) => e.stopPropagation()}>
         
         {/* Header */}
-        <div className="flex items-center justify-between mb-2">
-          <h2 className="text-2xl font-extrabold text-gray-900">Join the Fleet</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-900 text-xl font-bold p-1">✕</button>
+        <button onClick={onClose} className="absolute top-4 right-5 text-gray-600 hover:text-black text-2xl font-bold cursor-pointer">×</button>
+        <div className="text-center mb-6 mt-2">
+          <h2 className="text-[26px] font-bold text-gray-900 leading-tight">Join the Fleet</h2>
+          <p className="text-[14px] text-gray-600 mt-0">
+            Fill in your details to start your journey with Driver App.
+          </p>
         </div>
-        <p className="text-sm text-gray-500 mb-6">
-          Fill in your details to start your journey with Driver App.
-        </p>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-4">
           {/* Personal Details */}
           <div>
-            <h3 className="text-lg font-bold text-gray-900 border-b pb-2 mb-4">Personal Details</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Field label="Full / Display Name" required>
+            <h3 className="text-lg font-bold text-[#0a4cbd] border-b border-gray-300 pb-1 mb-3">Personal Details</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-0">
+              <Field label="Full / DisplayName" required>
                 <Input placeholder="John Doe" value={form.fullName} onChange={(e) => setField('fullName', e.target.value)} />
               </Field>
               <Field label="Mobile Number" required>
-                <Input placeholder="07123456789" value={form.mobileNumber} onChange={(e) => setField('mobileNumber', e.target.value)} />
+                <Input placeholder="Used for customer calls" value={form.mobileNumber} onChange={(e) => setField('mobileNumber', e.target.value)} />
               </Field>
               <Field label="Email Address" required>
                 <Input type="email" placeholder="john@example.com" value={form.email} onChange={(e) => setField('email', e.target.value)} />
               </Field>
               <Field label="Password" required>
-                <Input type="password" placeholder="********" value={form.password} onChange={(e) => setField('password', e.target.value)} />
+                <div className="relative">
+                  <Input 
+                    type={showPassword ? "text" : "password"} 
+                    placeholder="********" 
+                    value={form.password} 
+                    onChange={(e) => setField('password', e.target.value)} 
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-gray-700 cursor-pointer"
+                  >
+                    {showPassword ? (
+                      <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                    ) : (
+                      <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+              </Field>
+              <Field label="Company Name" required>
+                <Input placeholder="LTD Name or Trading As" value={form.companyName} onChange={(e) => setField('companyName', e.target.value)} />
+              </Field>
+              <Field label="Base Area" required>
+                <Input placeholder="Rough town/postcode only" value={form.baseArea} onChange={(e) => setField('baseArea', e.target.value)} />
               </Field>
             </div>
           </div>
 
           {/* Professional Details */}
           <div>
-            <h3 className="text-lg font-bold text-gray-900 border-b pb-2 mb-4">Vehicle & Professional Info</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Field label="Company Name">
-                <Input placeholder="S&C Services" value={form.companyName} onChange={(e) => setField('companyName', e.target.value)} />
-              </Field>
-              <Field label="Base Area" required>
-                <Input placeholder="e.g. Glasgow" value={form.baseArea} onChange={(e) => setField('baseArea', e.target.value)} />
-              </Field>
-            </div>
+            <h3 className="text-lg font-bold text-[#0a4cbd] border-b border-gray-300 pb-1 mb-3">Vehicle & Professional Info</h3>
             
-            <Field label="Vehicle Type" required>
-              <select
-                value={form.vehicleType}
-                onChange={(e) => setField('vehicleType', e.target.value)}
-                className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-[#003366] focus:border-[#003366] outline-none bg-white"
-              >
-                <option value="">Select vehicle type...</option>
-                {VEHICLE_TYPES.map((v) => <option key={v} value={v}>{v}</option>)}
-              </select>
-            </Field>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3 items-center">
+              <Field label="Vehicle Type" required noMargin>
+                <div className="relative">
+                  <select
+                    value={form.vehicleType}
+                    onChange={(e) => setField('vehicleType', e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg p-2.5 pr-10 text-sm focus:ring-2 focus:ring-[#003366] focus:border-[#003366] outline-none bg-[#f4f7fb] cursor-pointer appearance-none"
+                  >
+                    <option value="" className="cursor-pointer">Vehicle Type</option>
+                    {VEHICLE_TYPES.map((v) => <option key={v} value={v} className="cursor-pointer">{v}</option>)}
+                  </select>
+                  <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none">
+                    <svg className="w-4 h-4 text-gray-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+              </Field>
 
-            <label className="flex items-start gap-3 mt-4 mb-6 cursor-pointer group">
-              <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} className="mt-1 w-4 h-4 text-[#003366] rounded focus:ring-[#003366]" />
-              <span className="text-sm text-gray-700 group-hover:text-gray-900 font-medium">I confirm I am fully insured and operating legally <span className="text-red-500">*</span></span>
-            </label>
+              <label className="flex items-start gap-2 cursor-pointer group pt-6">
+                <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} className="mt-0.5 w-4 h-4 text-[#0b51c1] rounded focus:ring-[#0b51c1]" />
+                <span className="text-sm font-bold text-gray-800 leading-tight">
+                  I confirm I am fully insured and operating legally <span className="text-gray-800">*</span>
+                </span>
+              </label>
+            </div>
 
-            <Field label="Short Bio (Optional)">
+            <Field label="Short Bio(Optional)">
               <textarea
-                placeholder="Briefly describe your experience or vehicle..."
+                placeholder="Tell us about your experience (max 200 chars)"
                 value={form.shortBio}
                 onChange={(e) => setField('shortBio', e.target.value)}
                 rows={2}
                 maxLength={200}
-                className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-[#003366] outline-none resize-none"
+                className="w-full border border-gray-300 bg-[#f4f7fb] rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-[#003366] outline-none resize-none"
               />
             </Field>
 
             <div className="mb-4">
-              <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-2">Services Offered (Optional)</label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <label className="block text-sm font-bold text-gray-800 mb-2">Services Offered (Optional)</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-4">
                 {SERVICES_LIST.map((s) => (
-                  <label key={s} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer p-2 rounded hover:bg-gray-50 border border-transparent hover:border-gray-200 transition-all">
+                  <label key={s} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={form.servicesOffered.includes(s)}
                       onChange={() => toggleService(s)}
-                      className="rounded text-[#003366] focus:ring-[#003366]"
+                      className="w-4 h-4 rounded border-gray-300 text-[#0b51c1] focus:ring-[#0b51c1]"
                     />
                     {s}
                   </label>
                 ))}
               </div>
             </div>
-          </div>
 
-          {/* File Uploads */}
-          <div>
-            <h3 className="text-lg font-bold text-gray-900 border-b pb-2 mb-4">File Uploads</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Profile Image" required>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
+              <Field label="PROFILE IMAGE" required>
                 <div className="flex items-center gap-3">
-                  <label className="bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-colors">
+                  <label className="bg-[#eef4ff] text-[#0b51c1] px-5 py-2 rounded-full text-sm font-bold cursor-pointer transition-colors hover:bg-blue-100">
                     Choose File
                     <input type="file" accept="image/*" className="hidden" onChange={(e) => handleImagePick(e, 'profile')} />
                   </label>
-                  <span className="text-xs text-gray-500 truncate max-w-[120px]">
+                  <span className="text-sm text-gray-400 truncate max-w-[120px]">
                     {profileImageName || 'No file chosen'}
                   </span>
                 </div>
               </Field>
-              <Field label="Van Image" required>
+              <Field label="VAN IMAGE" required>
                 <div className="flex items-center gap-3">
-                  <label className="bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-colors">
+                  <label className="bg-[#eef4ff] text-[#0b51c1] px-5 py-2 rounded-full text-sm font-bold cursor-pointer transition-colors hover:bg-blue-100">
                     Choose File
                     <input type="file" accept="image/*" className="hidden" onChange={(e) => handleImagePick(e, 'van')} />
                   </label>
-                  <span className="text-xs text-gray-500 truncate max-w-[120px]">
+                  <span className="text-sm text-gray-400 truncate max-w-[120px]">
                     {vanImageName || 'No file chosen'}
                   </span>
                 </div>
@@ -233,9 +262,9 @@ export default function SignupModal({ onClose }) {
           <button
             type="submit"
             disabled={loading}
-            className="w-full sm:w-auto mx-auto block bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-10 rounded-lg mt-8 transition-colors disabled:opacity-70"
+            className="w-full bg-[#0b51c1] hover:bg-[#083a8c] text-white font-bold py-3.5 px-6 rounded-lg text-center mt-0 transition-colors disabled:opacity-70 cursor-pointer"
           >
-            {loading ? 'Submitting...' : 'Submit Registration'}
+            {loading ? 'Submitting...' : 'Submit'}
           </button>
         </form>
       </div>
