@@ -4,11 +4,10 @@ import { useEffect, useRef, useState } from 'react';
 import Map, { Marker } from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
-import { getSocket } from '@/lib/socket';
+import { getSocket, disconnectSocket } from '@/lib/socket';
 import { fetchLiveDrivers, logoutDriver, getCorrectImageUrl } from '@/lib/api';
 import { showNotification } from '@/components/ui/ToastManager';
 
-import MapSkeleton from '@/components/ui/MapSkeleton';
 import LiveDriverMarker from '@/components/ui/LiveDriverMarker';
 import OfflineDriverMarker from '@/components/ui/OfflineDriverMarker';
 import UserLocationMarker from '@/components/ui/UserLocationMarker';
@@ -41,7 +40,6 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
   const [loggedInDriver, setLoggedInDriver] = useState(initialDriver || null);
   const [isDriverLive, setIsDriverLive] = useState(false);
 
-  const [isMapReady, setIsMapReady] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [viewState, setViewState] = useState({ longitude: -4.2518, latitude: 55.8642, zoom: 11 }); // Glasgow default for replica
 
@@ -68,16 +66,9 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
     initSocket();
     if (!isDriverMode) autoDetectLocation();
 
-    // Safety fallback: if Mapbox onLoad never fires (bad token, network block, etc.)
-    // force-hide the skeleton after 4 seconds so the page is never stuck.
-    const mapFallbackTimer = setTimeout(() => {
-      setIsMapReady(true);
-    }, 4000);
-
     return () => {
-      clearTimeout(mapFallbackTimer);
       stopGPS();
-      socketRef.current?.disconnect();
+      disconnectSocket();
     };
   }, []);
 
@@ -98,7 +89,13 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
         setJwtToken(token);
         setLoggedInDriver(driver);
         const wasLive = localStorage.getItem('is_driver_live') === 'true';
-        if (wasLive) startGPS(driver, token);
+        if (wasLive) {
+          const socket = getSocket();
+          socketRef.current = socket;
+          if (!socket.connected) socket.connect();
+          socket.emit('go_live', { driverId: driver.id });
+          startGPS(driver, token);
+        }
       } catch (e) {}
     }
   }
@@ -122,12 +119,12 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
     });
 
     socket.on('driver_status_changed', ({ driverId, isLive: live }) => {
-      setDrivers((prev) => prev.map((d) => (d.id === driverId ? { ...d, isLive: live } : d)));
+      setDrivers((prev) => prev.map((d) => (String(d.id) === String(driverId) ? { ...d, isLive: live } : d)));
     });
 
     socket.on('driver_logged_out', ({ driverId }) => {
-      setDrivers((prev) => prev.filter((d) => d.id !== driverId));
-      setSelectedDriver((prev) => (prev?.id === driverId ? null : prev));
+      setDrivers((prev) => prev.filter((d) => String(d.id) !== String(driverId)));
+      setSelectedDriver((prev) => (prev && String(prev.id) === String(driverId) ? null : prev));
     });
   }
 
@@ -135,7 +132,7 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
     if (animFramesRef.current[driverId]) cancelAnimationFrame(animFramesRef.current[driverId]);
 
     setDrivers((prev) => {
-      const idx = prev.findIndex((d) => d.id === driverId);
+      const idx = prev.findIndex((d) => String(d.id) === String(driverId));
       if (idx === -1) { fetchDrivers(); return prev; }
 
       const oldLat = parseFloat(prev[idx].latitude) || newLat;
@@ -150,7 +147,7 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
         const curLng = oldLng + (newLng - oldLng) * easedT;
 
         setDrivers((p) =>
-          p.map((d) => d.id === driverId ? { ...d, latitude: curLat, longitude: curLng, isLive: live } : d)
+          p.map((d) => String(d.id) === String(driverId) ? { ...d, latitude: curLat, longitude: curLng, isLive: live } : d)
         );
 
         if (t < 1) animFramesRef.current[driverId] = requestAnimationFrame(step);
@@ -162,19 +159,27 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
     });
   }
 
-  async function handleToggleLive(goLive) {
+  async function handleToggleLive(goLive, driverOverride = null) {
+    const currentDriver = driverOverride || loggedInDriver;
+    
     if (goLive) {
       if (!navigator.geolocation) { showNotification('Geolocation is not supported.', true); return; }
       const socket = getSocket();
       socketRef.current = socket;
-      if (loggedInDriver?.id) socket.emit('go_live', { driverId: loggedInDriver.id });
+      if (!socket.connected) socket.connect();
+
+      if (currentDriver?.id) {
+        socket.emit('go_live', { driverId: currentDriver.id });
+      }
       setIsDriverLive(true);
       localStorage.setItem('is_driver_live', 'true');
       showNotification('You are now LIVE on the map!');
-      startGPS(loggedInDriver, jwtToken);
+      startGPS(currentDriver, jwtToken);
     } else {
       stopGPS();
-      if (socketRef.current?.connected && loggedInDriver?.id) socketRef.current.emit('go_offline', { driverId: loggedInDriver.id });
+      if (socketRef.current && currentDriver?.id) {
+        socketRef.current.emit('go_offline', { driverId: currentDriver.id });
+      }
       setIsDriverLive(false);
       localStorage.setItem('is_driver_live', 'false');
       showNotification('You went Offline.');
@@ -189,9 +194,12 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
         const { latitude: lat, longitude: lng } = pos.coords;
         if (isNaN(lat) || isNaN(lng)) return;
         setViewState((v) => ({ ...v, longitude: lng, latitude: lat, zoom: Math.max(v.zoom, 14.5) }));
-        if (socketRef.current?.connected && driver?.id) {
-          socketRef.current.emit('update_location', { driverId: driver.id, latitude: lat, longitude: lng });
+        
+        const socket = socketRef.current || getSocket();
+        if (driver?.id) {
+          socket.emit('update_location', { driverId: driver.id, latitude: lat, longitude: lng });
         }
+        
         localStorage.setItem('last_driver_lat', lat);
         localStorage.setItem('last_driver_lng', lng);
       },
@@ -254,7 +262,7 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
     localStorage.setItem('jwt_token', token);
     localStorage.setItem('logged_in_driver', JSON.stringify(driver));
     showNotification('Login successful!');
-    handleToggleLive(true);
+    handleToggleLive(true, driver);
   }
 
   async function handleLogout() {
@@ -326,13 +334,11 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
       {/* ── MAP AREA ── */}
       <main className="flex-1 relative bg-[#F0EEE9] flex flex-col">
         <div className="absolute inset-0 z-0">
-          {!isMapReady && <MapSkeleton />}
           <Map
             mapboxAccessToken={MAPBOX_TOKEN}
             mapStyle={MAP_STYLE}
             {...viewState}
             onMove={(e) => setViewState(e.viewState)}
-            onLoad={() => setIsMapReady(true)}
             onClick={() => setSelectedDriver(null)}
             style={{ width: '100%', height: '100%' }}
             attributionControl={false}

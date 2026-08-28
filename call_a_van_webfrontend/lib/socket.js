@@ -15,6 +15,8 @@ export function getSocket() {
       reconnectionAttempts: 5,
       reconnectionDelay: 2000,
     });
+  } else if (!socket.connected) {
+    socket.connect();
   }
   return socket;
 }
