@@ -301,48 +301,47 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
     : CUSTOMER_MAP_HEADER;
 
   return (
-    <div className={`flex flex-col w-full overflow-x-hidden font-sans ${(isFAQ || isDriverFAQ || isTerms || isDriverTerms || isPrivacyPolicy || isContact) ? 'min-h-screen' : 'h-screen overflow-hidden'}`}>
+    <div className={`flex flex-col w-full overflow-x-hidden font-sans ${(isFAQ || isDriverFAQ || isTerms || isDriverTerms || isPrivacyPolicy || isContact) ? 'min-h-screen' : 'h-[100dvh] sm:h-screen overflow-hidden'}`}>
       
       {/* ── HEADER (Solid Blue exact match) ── */}
-      <header className="flex-shrink-0 w-full flex flex-col" style={{ backgroundColor: '#0b51c1', minHeight: '180px', padding: '20px 40px' }}>
+      <header className="flex-shrink-0 w-full flex flex-col bg-[#0b51c1] px-4 py-4 min-h-[148px] sm:px-8 sm:py-5 sm:min-h-[168px] md:px-10 md:min-h-[180px]">
         {/* Top Nav Line */}
-        <div className="flex justify-between items-center w-full">
+        <div className="flex justify-between items-center w-full gap-3">
           {/* Left Logo */}
-          <a href="/" className="inline-block cursor-pointer">
+          <a href="/" className="inline-block cursor-pointer shrink-0">
             <img 
               src="https://cdn.prod.website-files.com/699f24e36021db019f687184/69d5648b03176e73b702b52f_callvan1.png" 
               alt="Call-A-Van.live" 
-              style={{ height: '40px' }}
-              className="object-contain hover:opacity-90 transition-opacity block"
+              className="h-8 sm:h-9 md:h-10 object-contain hover:opacity-90 transition-opacity block"
             />
           </a>
 
           {/* Right Actions */}
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-2.5 sm:gap-4 md:gap-6 shrink-0">
             {jwtToken ? (
-              <button onClick={() => setShowProfile(true)} className="w-10 h-10 rounded-full border border-white/50 bg-white/10 flex items-center justify-center text-white hover:bg-white/30 transition-all cursor-pointer shadow-sm">
+              <button onClick={() => setShowProfile(true)} className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-white/50 bg-white/10 flex items-center justify-center text-white hover:bg-white/30 transition-all cursor-pointer shadow-sm">
                 {profileUrl ? <img src={profileUrl} alt="profile" className="w-full h-full object-cover rounded-full" /> : "👤"}
               </button>
             ) : (
-              <button onClick={() => setShowLogin(true)} className="border border-white/40 text-white hover:bg-white/20 transition-all cursor-pointer shadow-sm font-medium" style={{ backgroundColor: 'rgba(255,255,255,0.1)', padding: '8px 24px', borderRadius: '6px', fontSize: '15px' }}>
+              <button onClick={() => setShowLogin(true)} className="border border-white/40 text-white hover:bg-white/20 transition-all cursor-pointer shadow-sm font-medium bg-white/10 px-3 py-1.5 rounded-md text-xs sm:px-6 sm:py-2 sm:rounded-[6px] sm:text-[15px] whitespace-nowrap">
                 Driver Login
               </button>
             )}
-            <button onClick={() => setShowHamburger(true)} className="text-white hover:opacity-75 transition-opacity cursor-pointer">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+            <button onClick={() => setShowHamburger(true)} className="text-white hover:opacity-75 transition-opacity cursor-pointer p-0.5">
+              <svg className="w-7 h-7 sm:w-8 sm:h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
             </button>
           </div>
         </div>
 
         {/* Center Title Section */}
-        <div className="flex-1 flex flex-col items-center justify-end text-center mt-4">
-          <h1 className="text-white font-bold tracking-tight" style={{ fontSize: '34px', lineHeight: '1.2' }}>{mapHeaderCopy.title}</h1>
-          <p className="text-white font-normal mt-2" style={{ fontSize: '15px' }}>{mapHeaderCopy.subtitle}</p>
+        <div className="flex-1 flex flex-col items-center justify-end text-center mt-3 sm:mt-4 px-2 sm:px-4">
+          <h1 className="text-white font-bold tracking-tight text-[22px] leading-tight sm:text-[28px] md:text-[34px] md:leading-[1.2] max-w-[20rem] sm:max-w-xl md:max-w-2xl">{mapHeaderCopy.title}</h1>
+          <p className="text-white font-normal mt-1.5 sm:mt-2 text-[13px] sm:text-sm md:text-[15px] max-w-[18rem] sm:max-w-md md:max-w-xl leading-snug">{mapHeaderCopy.subtitle}</p>
         </div>
       </header>
 
       {/* ── MAP AREA ── */}
-      <main className="flex-1 relative bg-[#F0EEE9] flex flex-col">
+      <main className="flex-1 relative bg-[#F0EEE9] flex flex-col min-h-0">
         <div className="absolute inset-0 z-0">
           <Map
             mapboxAccessToken={MAPBOX_TOKEN}
@@ -390,8 +389,8 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
                     const profileImgUrl = driver.profileImageUrl ? getCorrectImageUrl(driver.profileImageUrl) : null;
                     
                     return (
-                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-[20px] z-50">
-                        <div className="bg-white rounded-[12px] shadow-[0_3px_10px_rgba(0,0,0,0.26)] w-[260px] overflow-hidden">
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-[20px] z-50 w-[min(260px,calc(100vw-2rem))]">
+                        <div className="bg-white rounded-[12px] shadow-[0_3px_10px_rgba(0,0,0,0.26)] w-full overflow-hidden">
                           {/* Header */}
                           <div className="relative p-2.5 pb-1.5 flex items-start gap-2">
                             {/* Close Button */}
@@ -500,32 +499,35 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
         {!(isFAQ || isDriverFAQ || isTerms || isDriverTerms || isPrivacyPolicy || isContact) && (
           <>
             {/* Top Right Locate Me */}
-            <div className="absolute top-4 right-4 z-10">
-              <button onClick={enableUserLocation} className="bg-white shadow-md rounded-full w-10 h-10 flex items-center justify-center text-gray-700 hover:bg-gray-50 transition-all border border-gray-100 cursor-pointer">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg>
+            <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-10">
+              <button onClick={enableUserLocation} className="bg-white shadow-md rounded-full w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center text-gray-700 hover:bg-gray-50 transition-all border border-gray-100 cursor-pointer">
+                <svg className="w-[18px] h-[18px] sm:w-5 sm:h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg>
               </button>
             </div>
 
             {!isLoggedInDriver && (
               <>
                 {/* Bottom Left Status Box */}
-                <div className="absolute bottom-10 left-8 z-10 bg-white rounded-xl shadow-lg border border-gray-100 min-w-[160px] p-5">
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Status</p>
-                  <div className="flex items-center gap-3 mb-2.5">
-                    <div className="w-3.5 h-3.5 bg-[#22c55e] rounded-full shadow-sm"></div>
-                    <p className="text-sm font-semibold text-gray-800">{liveCount} Available</p>
+                <div className="absolute bottom-3 left-3 sm:bottom-10 sm:left-8 z-10 bg-white rounded-lg sm:rounded-xl shadow-lg border border-gray-100 min-w-[132px] sm:min-w-[160px] p-3 sm:p-5">
+                  <p className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 sm:mb-3">Status</p>
+                  <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-2.5">
+                    <div className="w-3 h-3 sm:w-3.5 sm:h-3.5 bg-[#22c55e] rounded-full shadow-sm shrink-0"></div>
+                    <p className="text-xs sm:text-sm font-semibold text-gray-800 whitespace-nowrap">{liveCount} Available</p>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-3.5 h-3.5 bg-gray-400 rounded-full shadow-sm"></div>
-                    <p className="text-sm font-semibold text-gray-800">{offlineCount} Offline</p>
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <div className="w-3 h-3 sm:w-3.5 sm:h-3.5 bg-gray-400 rounded-full shadow-sm shrink-0"></div>
+                    <p className="text-xs sm:text-sm font-semibold text-gray-800 whitespace-nowrap">{offlineCount} Offline</p>
                   </div>
                 </div>
 
                 {/* Bottom Right Live Count */}
-                <div className="absolute bottom-10 right-8 z-10">
-                  <div className="bg-white rounded-full py-3.5 px-6 shadow-lg border border-gray-100 flex items-center gap-3">
-                    <div className="w-3.5 h-3.5 bg-[#22c55e] rounded-full border border-green-600/20 shadow-sm"></div>
-                    <span className="text-sm font-bold text-gray-800 tracking-wide">{liveCount} Drivers Online Near You</span>
+                <div className="absolute bottom-3 right-3 sm:bottom-10 sm:right-8 z-10 max-w-[calc(100%-9.5rem)] sm:max-w-none">
+                  <div className="bg-white rounded-full py-2 px-3 sm:py-3.5 sm:px-6 shadow-lg border border-gray-100 flex items-center gap-2 sm:gap-3">
+                    <div className="w-3 h-3 sm:w-3.5 sm:h-3.5 bg-[#22c55e] rounded-full border border-green-600/20 shadow-sm shrink-0"></div>
+                    <span className="text-[11px] sm:text-sm font-bold text-gray-800 tracking-wide leading-tight">
+                      <span className="sm:hidden">{liveCount} Online Near You</span>
+                      <span className="hidden sm:inline">{liveCount} Drivers Online Near You</span>
+                    </span>
                   </div>
                 </div>
               </>
@@ -547,18 +549,18 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
 
       {/* ── FOOTER BAR ── */}
       {!(isFAQ || isDriverFAQ || isTerms || isDriverTerms || isPrivacyPolicy || isContact) && (
-      <footer className="flex-shrink-0 w-full flex justify-center gap-6" style={{ backgroundColor: '#0b51c1', padding: '16px 0' }}>
+      <footer className="flex-shrink-0 w-full flex flex-col sm:flex-row justify-center items-stretch sm:items-center gap-3 sm:gap-6 bg-[#0b51c1] px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-4">
         {!jwtToken ? (
           <>
-            <button onClick={() => setShowSignup(true)} className="text-white font-bold transition-all shadow-md hover:shadow-lg cursor-pointer transform hover:-translate-y-0.5" style={{ backgroundColor: '#144cb8', padding: '14px 36px', borderRadius: '8px', fontSize: '16px' }}>
+            <button onClick={() => setShowSignup(true)} className="w-full sm:w-auto text-white font-bold transition-all shadow-md hover:shadow-lg cursor-pointer transform hover:-translate-y-0.5 bg-[#144cb8] py-3 px-6 rounded-lg text-sm sm:py-3.5 sm:px-9 sm:rounded-[8px] sm:text-base">
               Become a Driver
             </button>
-            <button onClick={() => setShowLogin(true)} className="text-white font-bold transition-all shadow-md hover:shadow-lg cursor-pointer transform hover:-translate-y-0.5" style={{ backgroundColor: '#1bb54f', padding: '14px 44px', borderRadius: '8px', fontSize: '16px' }}>
+            <button onClick={() => setShowLogin(true)} className="w-full sm:w-auto text-white font-bold transition-all shadow-md hover:shadow-lg cursor-pointer transform hover:-translate-y-0.5 bg-[#1bb54f] py-3 px-6 rounded-lg text-sm sm:py-3.5 sm:px-11 sm:rounded-[8px] sm:text-base">
               Go Live
             </button>
           </>
         ) : (
-          <button onClick={() => handleToggleLive(!isDriverLive)} className="text-white font-bold transition-all shadow-md hover:shadow-lg cursor-pointer transform hover:-translate-y-0.5" style={{ backgroundColor: '#1bb54f', padding: '14px 48px', borderRadius: '8px', fontSize: '16px' }}>
+          <button onClick={() => handleToggleLive(!isDriverLive)} className="w-full sm:w-auto text-white font-bold transition-all shadow-md hover:shadow-lg cursor-pointer transform hover:-translate-y-0.5 bg-[#1bb54f] py-3 px-6 rounded-lg text-sm sm:py-3.5 sm:px-12 sm:rounded-[8px] sm:text-base">
             {isDriverLive ? 'Go Offline' : 'Go Live Now'}
           </button>
         )}
