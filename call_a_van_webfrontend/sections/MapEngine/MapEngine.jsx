@@ -25,6 +25,8 @@ import DriverTermsContent from '@/components/ui/DriverTermsContent';
 import PrivacyPolicyContent from '@/components/ui/PrivacyPolicyContent';
 import ContactContent from '@/components/ui/ContactContent';
 import PageLoader from '@/components/ui/PageLoader';
+import LocationHelpModal from '@/components/ui/LocationHelpModal';
+import { requestGeolocationPermission, loadGrantedLocation } from '@/lib/geolocation';
 import {
   CUSTOMER_MAP_HEADER,
   DRIVER_MAP_HEADER_LIVE,
@@ -65,6 +67,7 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [showHamburger, setShowHamburger] = useState(false); // Mobile menu
+  const [showLocationHelp, setShowLocationHelp] = useState(false);
   const [viewingDriverProfile, setViewingDriverProfile] = useState(null); // Public profile view
 
   const gpsWatchRef = useRef(null);
@@ -77,8 +80,7 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
     loadSession();
     fetchDrivers();
     initSocket();
-    checkLocationPermission();
-    if (!isDriverMode) autoDetectLocation();
+    initLocationPermissions();
 
     return () => {
       stopGPS();
@@ -102,12 +104,38 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
     }
   }, [locationStatus, jwtToken, loggedInDriver]);
 
-  function checkLocationPermission() {
+  function initLocationPermissions() {
     if (typeof navigator === 'undefined' || !navigator.permissions?.query) return;
+
     navigator.permissions.query({ name: 'geolocation' }).then((result) => {
       setLocationStatus(result.state);
       result.onchange = () => setLocationStatus(result.state);
+      if (!isDriverMode && result.state === 'granted') {
+        loadGrantedLocation(
+          (lat, lng) => {
+            setUserLocation({ lat, lng });
+            setViewState((v) => ({ ...v, latitude: lat, longitude: lng, zoom: 11 }));
+          },
+          () => {}
+        );
+      }
     }).catch(() => {});
+  }
+
+  function promptForLocation({ onSuccess, onDeniedExtra }) {
+    requestGeolocationPermission({
+      onSuccess: (lat, lng) => {
+        setLocationStatus('granted');
+        setShowLocationHelp(false);
+        onSuccess(lat, lng);
+      },
+      onDenied: () => {
+        setLocationStatus('denied');
+        setShowLocationHelp(true);
+        onDeniedExtra?.();
+      },
+      onError: (msg) => showNotification(msg, true),
+    });
   }
 
   function flyToLocation(lat, lng, zoom = 14) {
@@ -128,23 +156,14 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
   }
 
   function requestDriverLocation(driver = loggedInDriver) {
-    if (!navigator.geolocation) {
-      showNotification('Geolocation is not supported.', true);
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        updateDriverPosition(pos.coords.latitude, pos.coords.longitude, driver, true);
-      },
-      (err) => {
-        setLocationStatus(err.code === 1 ? 'denied' : 'prompt');
+    promptForLocation({
+      onSuccess: (lat, lng) => updateDriverPosition(lat, lng, driver, true),
+      onDeniedExtra: () => {
         setDriverLocation(null);
         setDriverLocationBannerDismissed(false);
         forceDriverOffline(driver);
-        showNotification('Please allow location to be visible on the map.', true);
       },
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
-    );
+    });
   }
 
   function updateDriverPosition(lat, lng, driver, shouldFly = false) {
@@ -279,10 +298,8 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
         if (!socket.connected) socket.connect();
 
         await new Promise((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(
-            (pos) => {
-              const lat = pos.coords.latitude;
-              const lng = pos.coords.longitude;
+          promptForLocation({
+            onSuccess: (lat, lng) => {
               if (currentDriver?.id) {
                 socket.emit('go_live', { driverId: currentDriver.id });
                 updateDriverPosition(lat, lng, currentDriver, true);
@@ -293,14 +310,12 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
               startGPS(currentDriver, jwtToken);
               resolve();
             },
-            (err) => {
-              setLocationStatus(err.code === 1 ? 'denied' : 'prompt');
+            onDeniedExtra: () => {
               forceDriverOffline(currentDriver);
               showNotification('Please allow location to go live.', true);
-              reject(err);
+              reject(new Error('denied'));
             },
-            { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
-          );
+          });
         });
       } catch (e) {
         // stay offline
@@ -352,42 +367,28 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
     if (gpsWatchRef.current !== null) { navigator.geolocation.clearWatch(gpsWatchRef.current); gpsWatchRef.current = null; }
   }
 
-  function autoDetectLocation() {
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        setLocationStatus('granted');
-        setUserLocation(loc);
-        setViewState((v) => ({ ...v, latitude: loc.lat, longitude: loc.lng, zoom: 11 }));
-      },
-      (err) => setLocationStatus(err.code === 1 ? 'denied' : 'prompt'),
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
-    );
-  }
-
   function enableUserLocation() {
-    if (!navigator.geolocation) { showNotification('Geolocation not supported.', true); return; }
-
     if (userLocation && locationStatus === 'granted') {
       flyToLocation(userLocation.lat, userLocation.lng, 14);
       return;
     }
 
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        setLocationStatus('granted');
+    promptForLocation({
+      onSuccess: (lat, lng) => {
+        const loc = { lat, lng };
         setUserLocation(loc);
-        flyToLocation(loc.lat, loc.lng, 14);
+        flyToLocation(lat, lng, 14);
       },
-      (err) => {
-        setLocationStatus(err.code === 1 ? 'denied' : 'prompt');
-        setUserLocation(null);
-        showNotification(err.code === 1 ? 'Location permission denied.' : 'Could not get your location.', true);
-      },
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
-    );
+    });
+  }
+
+  function retryLocationFromHelp() {
+    setShowLocationHelp(false);
+    if (isLoggedInDriver) {
+      requestDriverLocation();
+    } else {
+      enableUserLocation();
+    }
   }
 
   async function fetchAddress(lat, lng) {
@@ -467,6 +468,19 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
         : (effectiveDriverLive ? DRIVER_MAP_HEADER_LIVE : DRIVER_MAP_HEADER_OFFLINE))
     : CUSTOMER_MAP_HEADER;
 
+  useEffect(() => {
+    const resizeMap = () => mapRef.current?.getMap?.()?.resize();
+    resizeMap();
+    const t1 = setTimeout(resizeMap, 50);
+    const t2 = setTimeout(resizeMap, 300);
+    window.addEventListener('resize', resizeMap);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      window.removeEventListener('resize', resizeMap);
+    };
+  }, [showDriverLocationBanner, isFAQ, isDriverFAQ, isTerms, isDriverTerms, isPrivacyPolicy, isContact]);
+
   return (
     <div className={`flex flex-col w-full overflow-x-hidden font-sans ${(isFAQ || isDriverFAQ || isTerms || isDriverTerms || isPrivacyPolicy || isContact) ? 'min-h-screen' : 'h-[100dvh] sm:h-screen overflow-hidden'}`}>
       
@@ -508,16 +522,17 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
       </header>
 
       {/* ── MAP AREA ── */}
-      <main className="flex-1 relative bg-[#F0EEE9] flex flex-col min-h-0">
-        <div className="absolute inset-0 z-0">
+      <main className="flex-1 relative bg-[#F0EEE9] min-h-0 w-full overflow-hidden">
+        <div className="absolute inset-0 z-0 w-full h-full">
           <Map
             ref={mapRef}
             mapboxAccessToken={MAPBOX_TOKEN}
             mapStyle={MAP_STYLE}
             {...viewState}
             onMove={(e) => setViewState(e.viewState)}
+            onLoad={() => mapRef.current?.getMap?.()?.resize()}
             onClick={() => setSelectedDriver(null)}
-            style={{ width: '100%', height: '100%' }}
+            style={{ width: '100%', height: '100%', minHeight: '100%' }}
             attributionControl={false}
             cursor="default"
             scrollZoom={!(isFAQ || isDriverFAQ || isTerms || isDriverTerms || isPrivacyPolicy || isContact)}
@@ -775,6 +790,13 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
       )}
 
       {globalLoading && <PageLoader message={globalLoadingMessage} />}
+
+      {showLocationHelp && (
+        <LocationHelpModal
+          onClose={() => setShowLocationHelp(false)}
+          onTryAgain={retryLocationFromHelp}
+        />
+      )}
 
       {/* ── MODALS ── */}
       {showLogin && (
