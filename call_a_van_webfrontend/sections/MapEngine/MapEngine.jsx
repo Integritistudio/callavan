@@ -71,6 +71,7 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
   const socketRef = useRef(null);
   const animFramesRef = useRef({});
   const mapRef = useRef(null);
+  const prevLocationStatusRef = useRef('unknown');
 
   useEffect(() => {
     loadSession();
@@ -84,6 +85,22 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
       disconnectSocket();
     };
   }, []);
+
+  useEffect(() => {
+    const prev = prevLocationStatusRef.current;
+    prevLocationStatusRef.current = locationStatus;
+
+    if (locationStatus === 'denied' && prev !== 'denied') {
+      setUserLocation(null);
+      if (jwtToken && loggedInDriver) {
+        setDriverLocation(null);
+        localStorage.removeItem('last_driver_lat');
+        localStorage.removeItem('last_driver_lng');
+        setDriverLocationBannerDismissed(false);
+        forceDriverOffline(loggedInDriver);
+      }
+    }
+  }, [locationStatus, jwtToken, loggedInDriver]);
 
   function checkLocationPermission() {
     if (typeof navigator === 'undefined' || !navigator.permissions?.query) return;
@@ -118,24 +135,15 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         updateDriverPosition(pos.coords.latitude, pos.coords.longitude, driver, true);
-        if (driver) {
-          const socket = getSocket();
-          socketRef.current = socket;
-          if (!socket.connected) socket.connect();
-          if (!isDriverLive) {
-            socket.emit('go_live', { driverId: driver.id });
-            setIsDriverLive(true);
-            localStorage.setItem('is_driver_live', 'true');
-          }
-          startGPS(driver, jwtToken);
-        }
       },
       (err) => {
         setLocationStatus(err.code === 1 ? 'denied' : 'prompt');
+        setDriverLocation(null);
+        setDriverLocationBannerDismissed(false);
         forceDriverOffline(driver);
         showNotification('Please allow location to be visible on the map.', true);
       },
-      { enableHighAccuracy: false, maximumAge: 600000, timeout: 8000 }
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
     );
   }
 
@@ -152,6 +160,14 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
     }
     localStorage.setItem('last_driver_lat', lat);
     localStorage.setItem('last_driver_lng', lng);
+  }
+
+  function handleDriverLocationLost(driver) {
+    setDriverLocation(null);
+    localStorage.removeItem('last_driver_lat');
+    localStorage.removeItem('last_driver_lng');
+    setDriverLocationBannerDismissed(false);
+    forceDriverOffline(driver);
   }
 
   const handleProfileUpdated = (updatedDriver) => {
@@ -283,7 +299,7 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
               showNotification('Please allow location to go live.', true);
               reject(err);
             },
-            { enableHighAccuracy: false, maximumAge: 600000, timeout: 8000 }
+            { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
           );
         });
       } catch (e) {
@@ -315,7 +331,7 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
       (pos) => updateDriverPosition(pos.coords.latitude, pos.coords.longitude, driver, true),
       (err) => {
         setLocationStatus(err.code === 1 ? 'denied' : 'prompt');
-        forceDriverOffline(driver);
+        handleDriverLocationLost(driver);
         showNotification('GPS error: ' + err.message, true);
       },
       { enableHighAccuracy: false, maximumAge: 600000, timeout: 5000 }
@@ -325,7 +341,7 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
       (pos) => updateDriverPosition(pos.coords.latitude, pos.coords.longitude, driver, false),
       (err) => {
         setLocationStatus(err.code === 1 ? 'denied' : 'prompt');
-        forceDriverOffline(driver);
+        handleDriverLocationLost(driver);
         showNotification('GPS error: ' + err.message, true);
       },
       { enableHighAccuracy: true, maximumAge: 0 }
@@ -346,14 +362,14 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
         setViewState((v) => ({ ...v, latitude: loc.lat, longitude: loc.lng, zoom: 11 }));
       },
       (err) => setLocationStatus(err.code === 1 ? 'denied' : 'prompt'),
-      { enableHighAccuracy: false, maximumAge: 600000, timeout: 5000 }
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
     );
   }
 
   function enableUserLocation() {
     if (!navigator.geolocation) { showNotification('Geolocation not supported.', true); return; }
 
-    if (userLocation) {
+    if (userLocation && locationStatus === 'granted') {
       flyToLocation(userLocation.lat, userLocation.lng, 14);
       return;
     }
@@ -365,11 +381,12 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
         setUserLocation(loc);
         flyToLocation(loc.lat, loc.lng, 14);
       },
-      () => {
-        setLocationStatus('denied');
-        showNotification('Could not get your location.', true);
+      (err) => {
+        setLocationStatus(err.code === 1 ? 'denied' : 'prompt');
+        setUserLocation(null);
+        showNotification(err.code === 1 ? 'Location permission denied.' : 'Could not get your location.', true);
       },
-      { enableHighAccuracy: false, maximumAge: 600000, timeout: 5000 }
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
     );
   }
 
@@ -444,7 +461,6 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
   const isLoggedInDriver = !!jwtToken;
   const effectiveDriverLive = isDriverLive && !!hasOwnLocation;
   const showDriverLocationBanner = isLoggedInDriver && !hasOwnLocation && !driverLocationBannerDismissed;
-  const showCustomerLocationBtn = !isLoggedInDriver && !userLocation;
   const mapHeaderCopy = isLoggedInDriver
     ? (!hasOwnLocation || locationStatus === 'denied'
         ? DRIVER_MAP_HEADER_NO_LOCATION
@@ -650,10 +666,17 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
         {/* ── MAP OVERLAYS ── */}
         {!(isFAQ || isDriverFAQ || isTerms || isDriverTerms || isPrivacyPolicy || isContact) && (
           <>
-            {/* Top Right Locate Me — customers with location only */}
-            {!isLoggedInDriver && userLocation && (
+            {/* Top Right Locate — customers only (icon); fly if granted, else browser prompt */}
+            {!isLoggedInDriver && (
             <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-10">
-              <button onClick={enableUserLocation} className="bg-white shadow-md rounded-full w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center text-gray-700 hover:bg-gray-50 transition-all border border-gray-100 cursor-pointer">
+              <button
+                onClick={enableUserLocation}
+                className={`bg-white shadow-md rounded-full w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center hover:bg-gray-50 transition-all border cursor-pointer ${
+                  userLocation ? 'text-gray-700 border-gray-100' : 'text-[#0b51c1] border-gray-200 ring-2 ring-[#0b51c1]/15'
+                }`}
+                aria-label={userLocation ? 'Go to my location' : 'Allow location'}
+                title={userLocation ? 'Go to my location' : 'Allow location'}
+              >
                 <svg className="w-[18px] h-[18px] sm:w-5 sm:h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg>
               </button>
             </div>
@@ -723,20 +746,6 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
             </button>
           </div>
-        </div>
-      )}
-
-      {/* ── CUSTOMER LOCATION ICON (above footer, icon only) ── */}
-      {showCustomerLocationBtn && !(isFAQ || isDriverFAQ || isTerms || isDriverTerms || isPrivacyPolicy || isContact) && (
-        <div className="flex-shrink-0 w-full bg-[#F0EEE9] flex justify-center py-2 px-4">
-          <button
-            onClick={enableUserLocation}
-            className="bg-white shadow-md rounded-full w-11 h-11 flex items-center justify-center text-[#0b51c1] hover:bg-gray-50 transition-all border border-gray-200 cursor-pointer"
-            aria-label="Allow location"
-            title="Allow location"
-          >
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg>
-          </button>
         </div>
       )}
 
