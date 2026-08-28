@@ -1,5 +1,5 @@
 /** Smooth van marker scale based on map zoom (full size at zoom 14+). */
-const BASE_MARKER_SCALE = 0.72;
+const BASE_MARKER_SCALE = 0.88;
 
 export function getVanMarkerScale(zoom) {
   const baseZoom = 14;

@@ -530,9 +530,17 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
           {/* Right Actions */}
           <div className="flex items-center gap-2.5 sm:gap-4 md:gap-6 shrink-0">
             {jwtToken ? (
-              <button onClick={() => setShowProfile(true)} className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-white/50 bg-white/10 flex items-center justify-center text-white hover:bg-white/30 transition-all cursor-pointer shadow-sm">
-                {profileUrl ? <img src={profileUrl} alt="profile" className="w-full h-full object-cover rounded-full" /> : "👤"}
-              </button>
+              <>
+                <button onClick={() => setShowProfile(true)} className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-white/50 bg-white/10 flex items-center justify-center text-white hover:bg-white/30 transition-all cursor-pointer shadow-sm">
+                  {profileUrl ? <img src={profileUrl} alt="profile" className="w-full h-full object-cover rounded-full" /> : "👤"}
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="border border-white/40 text-white hover:bg-white/20 transition-all cursor-pointer shadow-sm font-medium bg-white/10 px-3 py-1.5 rounded-md text-xs sm:px-5 sm:py-2 sm:rounded-[6px] sm:text-[15px] whitespace-nowrap"
+                >
+                  Logout
+                </button>
+              </>
             ) : (
               <button onClick={() => setShowLogin(true)} className="border border-white/40 text-white hover:bg-white/20 transition-all cursor-pointer shadow-sm font-medium bg-white/10 px-3 py-1.5 rounded-md text-xs sm:px-6 sm:py-2 sm:rounded-[6px] sm:text-[15px] whitespace-nowrap">
                 Driver Login
@@ -920,14 +928,23 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
               ))}
             </div>
 
-            {/* Login Button (If Not Logged In) */}
-            {!jwtToken && (
+            {/* Login / Logout */}
+            {!jwtToken ? (
               <div className="px-4 pb-5 pt-2">
                 <button 
                   onClick={() => { setShowHamburger(false); setShowLogin(true); }} 
                   className="w-full bg-[#22c55e] hover:bg-[#16a34a] text-white py-3.5 rounded-[8px] font-bold text-[15px] shadow-sm transition-colors cursor-pointer"
                 >
                   Driver Login
+                </button>
+              </div>
+            ) : (
+              <div className="px-4 pb-5 pt-2">
+                <button
+                  onClick={() => { setShowHamburger(false); handleLogout(); }}
+                  className="w-full bg-white border-2 border-red-200 text-red-600 hover:bg-red-50 py-3.5 rounded-[8px] font-bold text-[15px] shadow-sm transition-colors cursor-pointer"
+                >
+                  Logout
                 </button>
               </div>
             )}
