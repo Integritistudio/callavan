@@ -17,3 +17,14 @@ export const DRIVER_MAP_HEADER_OFFLINE = {
   title: 'You are logged in',
   subtitle: 'Tap Go Live Now to become visible to users',
 };
+
+/** Shown when location permission is missing or denied. */
+export const DRIVER_MAP_HEADER_NO_LOCATION = {
+  title: 'You need to allow location to be visible on map',
+  subtitle: 'You not visible to users',
+};
+
+/** Bottom banner when location has not been allowed. */
+export const LOCATION_PERMISSION_BANNER = {
+  message: 'Please allow your location to be visible on map',
+};

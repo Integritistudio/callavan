@@ -28,6 +28,8 @@ import {
   CUSTOMER_MAP_HEADER,
   DRIVER_MAP_HEADER_LIVE,
   DRIVER_MAP_HEADER_OFFLINE,
+  DRIVER_MAP_HEADER_NO_LOCATION,
+  LOCATION_PERMISSION_BANNER,
 } from '@/constants/mapCopy';
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || '';
@@ -45,11 +47,12 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
   const [loggedInDriver, setLoggedInDriver] = useState(initialDriver || null);
   const [isDriverLive, setIsDriverLive] = useState(false);
 
-  const [isMounted, setIsMounted] = useState(false);
   const [viewState, setViewState] = useState({ longitude: -4.2518, latitude: 55.8642, zoom: 11 }); // Glasgow default for replica
 
   const [drivers, setDrivers] = useState([]);
   const [userLocation, setUserLocation] = useState(null);
+  const [driverLocation, setDriverLocation] = useState(null);
+  const [locationStatus, setLocationStatus] = useState('unknown'); // unknown | granted | denied | prompt
   const [selectedDriver, setSelectedDriver] = useState(null);
   const [selectedDriverAddress, setSelectedDriverAddress] = useState(null);
 
@@ -63,12 +66,13 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
   const gpsWatchRef = useRef(null);
   const socketRef = useRef(null);
   const animFramesRef = useRef({});
+  const mapRef = useRef(null);
 
   useEffect(() => {
-    setIsMounted(true);
     loadSession();
     fetchDrivers();
     initSocket();
+    checkLocationPermission();
     if (!isDriverMode) autoDetectLocation();
 
     return () => {
@@ -76,6 +80,37 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
       disconnectSocket();
     };
   }, []);
+
+  function checkLocationPermission() {
+    if (typeof navigator === 'undefined' || !navigator.permissions?.query) return;
+    navigator.permissions.query({ name: 'geolocation' }).then((result) => {
+      setLocationStatus(result.state);
+      result.onchange = () => setLocationStatus(result.state);
+    }).catch(() => {});
+  }
+
+  function flyToLocation(lat, lng, zoom = 14) {
+    const map = mapRef.current?.getMap?.() ?? mapRef.current;
+    if (map?.flyTo) {
+      map.flyTo({ center: [lng, lat], zoom, duration: 700, essential: true });
+    }
+    setViewState((v) => ({ ...v, longitude: lng, latitude: lat, zoom }));
+  }
+
+  function updateDriverPosition(lat, lng, driver, shouldFly = false) {
+    if (isNaN(lat) || isNaN(lng)) return;
+    setLocationStatus('granted');
+    setDriverLocation({ lat, lng });
+    if (shouldFly) {
+      flyToLocation(lat, lng, 14.5);
+    }
+    const socket = socketRef.current || getSocket();
+    if (driver?.id) {
+      socket.emit('update_location', { driverId: driver.id, latitude: lat, longitude: lng });
+    }
+    localStorage.setItem('last_driver_lat', lat);
+    localStorage.setItem('last_driver_lng', lng);
+  }
 
   const handleProfileUpdated = (updatedDriver) => {
     setLoggedInDriver(updatedDriver);
@@ -93,6 +128,11 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
         const driver = JSON.parse(driverJson);
         setJwtToken(token);
         setLoggedInDriver(driver);
+        const savedLat = parseFloat(localStorage.getItem('last_driver_lat'));
+        const savedLng = parseFloat(localStorage.getItem('last_driver_lng'));
+        if (!isNaN(savedLat) && !isNaN(savedLng)) {
+          setDriverLocation({ lat: savedLat, lng: savedLng });
+        }
         const wasLive = localStorage.getItem('is_driver_live') === 'true';
         setIsDriverLive(wasLive);
         if (wasLive) {
@@ -195,21 +235,22 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
   function startGPS(driver, token) {
     stopGPS();
     setIsDriverLive(true);
-    gpsWatchRef.current = navigator.geolocation.watchPosition(
-      (pos) => {
-        const { latitude: lat, longitude: lng } = pos.coords;
-        if (isNaN(lat) || isNaN(lng)) return;
-        setViewState((v) => ({ ...v, longitude: lng, latitude: lat, zoom: Math.max(v.zoom, 14.5) }));
-        
-        const socket = socketRef.current || getSocket();
-        if (driver?.id) {
-          socket.emit('update_location', { driverId: driver.id, latitude: lat, longitude: lng });
-        }
-        
-        localStorage.setItem('last_driver_lat', lat);
-        localStorage.setItem('last_driver_lng', lng);
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => updateDriverPosition(pos.coords.latitude, pos.coords.longitude, driver, true),
+      (err) => {
+        setLocationStatus(err.code === 1 ? 'denied' : 'prompt');
+        showNotification('GPS error: ' + err.message, true);
       },
-      (err) => showNotification('GPS error: ' + err.message, true),
+      { enableHighAccuracy: false, maximumAge: 600000, timeout: 5000 }
+    );
+
+    gpsWatchRef.current = navigator.geolocation.watchPosition(
+      (pos) => updateDriverPosition(pos.coords.latitude, pos.coords.longitude, driver, false),
+      (err) => {
+        setLocationStatus(err.code === 1 ? 'denied' : 'prompt');
+        showNotification('GPS error: ' + err.message, true);
+      },
       { enableHighAccuracy: true, maximumAge: 0 }
     );
   }
@@ -223,23 +264,35 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setLocationStatus('granted');
         setUserLocation(loc);
         setViewState((v) => ({ ...v, latitude: loc.lat, longitude: loc.lng, zoom: 11 }));
       },
-      () => {}
+      (err) => setLocationStatus(err.code === 1 ? 'denied' : 'prompt'),
+      { enableHighAccuracy: false, maximumAge: 600000, timeout: 5000 }
     );
   }
 
-  async function enableUserLocation() {
+  function enableUserLocation() {
     if (!navigator.geolocation) { showNotification('Geolocation not supported.', true); return; }
+
+    if (userLocation) {
+      flyToLocation(userLocation.lat, userLocation.lng, 14);
+      return;
+    }
+
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setLocationStatus('granted');
         setUserLocation(loc);
-        setViewState((v) => ({ ...v, latitude: loc.lat, longitude: loc.lng, zoom: 14 }));
+        flyToLocation(loc.lat, loc.lng, 14);
       },
-      () => showNotification('Could not get your location.', true),
-      { enableHighAccuracy: true }
+      () => {
+        setLocationStatus('denied');
+        showNotification('Could not get your location.', true);
+      },
+      { enableHighAccuracy: false, maximumAge: 600000, timeout: 5000 }
     );
   }
 
@@ -289,15 +342,21 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
     showNotification('Opening dialer & copied number to clipboard.');
   }
 
-  const ownDriverMarkerLat = isMounted ? parseFloat(localStorage.getItem('last_driver_lat')) : NaN;
-  const ownDriverMarkerLng = isMounted ? parseFloat(localStorage.getItem('last_driver_lng')) : NaN;
-  const hasOwnLocation = jwtToken && loggedInDriver && !isNaN(ownDriverMarkerLat) && !isNaN(ownDriverMarkerLng);
+  const hasOwnLocation = jwtToken && loggedInDriver && driverLocation;
+  const ownDriverMarkerLat = driverLocation?.lat;
+  const ownDriverMarkerLng = driverLocation?.lng;
   const profileUrl = loggedInDriver?.profileImageUrl ? getCorrectImageUrl(loggedInDriver.profileImageUrl) : null;
   const liveCount = drivers.filter(d => isLive(d)).length;
   const offlineCount = drivers.length - liveCount;
   const isLoggedInDriver = !!jwtToken;
+  const lacksLocation = isLoggedInDriver ? !hasOwnLocation : !userLocation;
+  const showLocationBanner =
+    (isLoggedInDriver && !hasOwnLocation) ||
+    (!isLoggedInDriver && locationStatus === 'denied');
   const mapHeaderCopy = isLoggedInDriver
-    ? (isDriverLive ? DRIVER_MAP_HEADER_LIVE : DRIVER_MAP_HEADER_OFFLINE)
+    ? (lacksLocation || locationStatus === 'denied'
+        ? DRIVER_MAP_HEADER_NO_LOCATION
+        : (isDriverLive ? DRIVER_MAP_HEADER_LIVE : DRIVER_MAP_HEADER_OFFLINE))
     : CUSTOMER_MAP_HEADER;
 
   return (
@@ -344,6 +403,7 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
       <main className="flex-1 relative bg-[#F0EEE9] flex flex-col min-h-0">
         <div className="absolute inset-0 z-0">
           <Map
+            ref={mapRef}
             mapboxAccessToken={MAPBOX_TOKEN}
             mapStyle={MAP_STYLE}
             {...viewState}
@@ -532,6 +592,25 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
                 </div>
               </>
             )}
+
+            {showLocationBanner && (
+              <div className="absolute bottom-3 left-3 right-3 sm:bottom-6 sm:left-8 sm:right-8 z-20">
+                <div className="bg-white rounded-xl shadow-lg border border-amber-200 px-4 py-3 sm:px-5 sm:py-4 flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-full bg-amber-50 flex items-center justify-center shrink-0 mt-0.5">
+                    <svg className="w-4 h-4 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm sm:text-[15px] font-semibold text-gray-800 leading-snug">{LOCATION_PERMISSION_BANNER.message}</p>
+                  </div>
+                  <button
+                    onClick={isLoggedInDriver ? () => handleToggleLive(true) : enableUserLocation}
+                    className="shrink-0 text-xs sm:text-sm font-bold text-[#0b51c1] hover:underline cursor-pointer whitespace-nowrap"
+                  >
+                    Allow
+                  </button>
+                </div>
+              </div>
+            )}
           </>
         )}
 
@@ -560,7 +639,12 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
             </button>
           </>
         ) : (
-          <button onClick={() => handleToggleLive(!isDriverLive)} className="w-full sm:w-auto text-white font-bold transition-all shadow-md hover:shadow-lg cursor-pointer transform hover:-translate-y-0.5 bg-[#1bb54f] py-3 px-6 rounded-lg text-sm sm:py-3.5 sm:px-12 sm:rounded-[8px] sm:text-base">
+          <button
+            onClick={() => handleToggleLive(!isDriverLive)}
+            className={`w-full sm:w-auto text-white font-bold transition-all shadow-md hover:shadow-lg cursor-pointer transform hover:-translate-y-0.5 py-3 px-6 rounded-lg text-sm sm:py-3.5 sm:px-12 sm:rounded-[8px] sm:text-base ${
+              isDriverLive ? 'bg-red-500 hover:bg-red-600' : 'bg-[#1bb54f] hover:bg-[#16a34a]'
+            }`}
+          >
             {isDriverLive ? 'Go Offline' : 'Go Live Now'}
           </button>
         )}
