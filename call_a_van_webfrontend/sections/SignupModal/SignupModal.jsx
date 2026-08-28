@@ -38,7 +38,7 @@ function Input({ ...props }) {
   );
 }
 
-export default function SignupModal({ onClose }) {
+export default function SignupModal({ onClose, onLoadingChange }) {
   const [form, setForm] = useState({
     fullName: '',
     mobileNumber: '',
@@ -95,6 +95,7 @@ export default function SignupModal({ onClose }) {
       return;
     }
     setLoading(true);
+    onLoadingChange?.(true);
     try {
       await signupDriver({
         ...form,
@@ -109,6 +110,7 @@ export default function SignupModal({ onClose }) {
       showNotification(err.message || 'Signup failed.', true);
     } finally {
       setLoading(false);
+      onLoadingChange?.(false);
     }
   }
 

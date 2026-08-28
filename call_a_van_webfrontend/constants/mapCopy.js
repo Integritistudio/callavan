@@ -24,7 +24,8 @@ export const DRIVER_MAP_HEADER_NO_LOCATION = {
   subtitle: 'You not visible to users',
 };
 
-/** Bottom banner when location has not been allowed. */
+/** Bottom banner when location has not been allowed (drivers only). */
 export const LOCATION_PERMISSION_BANNER = {
   message: 'Please allow your location to be visible on map',
+  allowButton: 'Allow Location',
 };

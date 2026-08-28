@@ -24,6 +24,7 @@ import TermsContent from '@/components/ui/TermsContent';
 import DriverTermsContent from '@/components/ui/DriverTermsContent';
 import PrivacyPolicyContent from '@/components/ui/PrivacyPolicyContent';
 import ContactContent from '@/components/ui/ContactContent';
+import PageLoader from '@/components/ui/PageLoader';
 import {
   CUSTOMER_MAP_HEADER,
   DRIVER_MAP_HEADER_LIVE,
@@ -53,6 +54,9 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
   const [userLocation, setUserLocation] = useState(null);
   const [driverLocation, setDriverLocation] = useState(null);
   const [locationStatus, setLocationStatus] = useState('unknown'); // unknown | granted | denied | prompt
+  const [driverLocationBannerDismissed, setDriverLocationBannerDismissed] = useState(false);
+  const [globalLoading, setGlobalLoading] = useState(false);
+  const [globalLoadingMessage, setGlobalLoadingMessage] = useState('Loading...');
   const [selectedDriver, setSelectedDriver] = useState(null);
   const [selectedDriverAddress, setSelectedDriverAddress] = useState(null);
 
@@ -97,6 +101,44 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
     setViewState((v) => ({ ...v, longitude: lng, latitude: lat, zoom }));
   }
 
+  function forceDriverOffline(driver) {
+    stopGPS();
+    setIsDriverLive(false);
+    localStorage.setItem('is_driver_live', 'false');
+    if (socketRef.current && driver?.id) {
+      socketRef.current.emit('go_offline', { driverId: driver.id });
+    }
+  }
+
+  function requestDriverLocation(driver = loggedInDriver) {
+    if (!navigator.geolocation) {
+      showNotification('Geolocation is not supported.', true);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        updateDriverPosition(pos.coords.latitude, pos.coords.longitude, driver, true);
+        if (driver) {
+          const socket = getSocket();
+          socketRef.current = socket;
+          if (!socket.connected) socket.connect();
+          if (!isDriverLive) {
+            socket.emit('go_live', { driverId: driver.id });
+            setIsDriverLive(true);
+            localStorage.setItem('is_driver_live', 'true');
+          }
+          startGPS(driver, jwtToken);
+        }
+      },
+      (err) => {
+        setLocationStatus(err.code === 1 ? 'denied' : 'prompt');
+        forceDriverOffline(driver);
+        showNotification('Please allow location to be visible on the map.', true);
+      },
+      { enableHighAccuracy: false, maximumAge: 600000, timeout: 8000 }
+    );
+  }
+
   function updateDriverPosition(lat, lng, driver, shouldFly = false) {
     if (isNaN(lat) || isNaN(lng)) return;
     setLocationStatus('granted');
@@ -134,13 +176,16 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
           setDriverLocation({ lat: savedLat, lng: savedLng });
         }
         const wasLive = localStorage.getItem('is_driver_live') === 'true';
-        setIsDriverLive(wasLive);
-        if (wasLive) {
+        const hasSavedLocation = !isNaN(savedLat) && !isNaN(savedLng);
+        setIsDriverLive(wasLive && hasSavedLocation);
+        if (wasLive && hasSavedLocation) {
           const socket = getSocket();
           socketRef.current = socket;
           if (!socket.connected) socket.connect();
           socket.emit('go_live', { driverId: driver.id });
           startGPS(driver, token);
+        } else if (wasLive && !hasSavedLocation) {
+          localStorage.setItem('is_driver_live', 'false');
         }
       } catch (e) {}
     }
@@ -207,39 +252,70 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
 
   async function handleToggleLive(goLive, driverOverride = null) {
     const currentDriver = driverOverride || loggedInDriver;
-    
+
     if (goLive) {
       if (!navigator.geolocation) { showNotification('Geolocation is not supported.', true); return; }
-      const socket = getSocket();
-      socketRef.current = socket;
-      if (!socket.connected) socket.connect();
+      setGlobalLoading(true);
+      setGlobalLoadingMessage(driverOverride ? 'Logging in...' : 'Going live...');
+      try {
+        const socket = getSocket();
+        socketRef.current = socket;
+        if (!socket.connected) socket.connect();
 
-      if (currentDriver?.id) {
-        socket.emit('go_live', { driverId: currentDriver.id });
+        await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              const lat = pos.coords.latitude;
+              const lng = pos.coords.longitude;
+              if (currentDriver?.id) {
+                socket.emit('go_live', { driverId: currentDriver.id });
+                updateDriverPosition(lat, lng, currentDriver, true);
+              }
+              setIsDriverLive(true);
+              localStorage.setItem('is_driver_live', 'true');
+              showNotification('You are now LIVE on the map!');
+              startGPS(currentDriver, jwtToken);
+              resolve();
+            },
+            (err) => {
+              setLocationStatus(err.code === 1 ? 'denied' : 'prompt');
+              forceDriverOffline(currentDriver);
+              showNotification('Please allow location to go live.', true);
+              reject(err);
+            },
+            { enableHighAccuracy: false, maximumAge: 600000, timeout: 8000 }
+          );
+        });
+      } catch (e) {
+        // stay offline
+      } finally {
+        setGlobalLoading(false);
       }
-      setIsDriverLive(true);
-      localStorage.setItem('is_driver_live', 'true');
-      showNotification('You are now LIVE on the map!');
-      startGPS(currentDriver, jwtToken);
     } else {
-      stopGPS();
-      if (socketRef.current && currentDriver?.id) {
-        socketRef.current.emit('go_offline', { driverId: currentDriver.id });
+      setGlobalLoading(true);
+      setGlobalLoadingMessage('Going offline...');
+      try {
+        stopGPS();
+        if (socketRef.current && currentDriver?.id) {
+          socketRef.current.emit('go_offline', { driverId: currentDriver.id });
+        }
+        setIsDriverLive(false);
+        localStorage.setItem('is_driver_live', 'false');
+        showNotification('You went Offline.');
+      } finally {
+        setGlobalLoading(false);
       }
-      setIsDriverLive(false);
-      localStorage.setItem('is_driver_live', 'false');
-      showNotification('You went Offline.');
     }
   }
 
   function startGPS(driver, token) {
     stopGPS();
-    setIsDriverLive(true);
 
     navigator.geolocation.getCurrentPosition(
       (pos) => updateDriverPosition(pos.coords.latitude, pos.coords.longitude, driver, true),
       (err) => {
         setLocationStatus(err.code === 1 ? 'denied' : 'prompt');
+        forceDriverOffline(driver);
         showNotification('GPS error: ' + err.message, true);
       },
       { enableHighAccuracy: false, maximumAge: 600000, timeout: 5000 }
@@ -249,6 +325,7 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
       (pos) => updateDriverPosition(pos.coords.latitude, pos.coords.longitude, driver, false),
       (err) => {
         setLocationStatus(err.code === 1 ? 'denied' : 'prompt');
+        forceDriverOffline(driver);
         showNotification('GPS error: ' + err.message, true);
       },
       { enableHighAccuracy: true, maximumAge: 0 }
@@ -316,23 +393,39 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
   }
 
   function handleLoginSuccess(token, driver) {
+    setGlobalLoading(true);
+    setGlobalLoadingMessage('Logging in...');
     setJwtToken(token);
     setLoggedInDriver(driver);
+    setDriverLocationBannerDismissed(false);
     localStorage.setItem('jwt_token', token);
     localStorage.setItem('logged_in_driver', JSON.stringify(driver));
-    showNotification('Login successful!');
-    handleToggleLive(true, driver);
+    handleToggleLive(true, driver)
+      .then(() => showNotification('Login successful!'))
+      .catch(() => showNotification('Login successful! Allow location to go live.', false));
   }
 
   async function handleLogout() {
-    await handleToggleLive(false);
-    if (jwtToken) try { await logoutDriver(jwtToken); } catch (e) {}
-    setJwtToken(null);
-    setLoggedInDriver(null);
-    localStorage.removeItem('jwt_token');
-    localStorage.removeItem('logged_in_driver');
-    localStorage.setItem('is_driver_live', 'false');
-    showNotification('Logged out successfully.');
+    setGlobalLoading(true);
+    setGlobalLoadingMessage('Logging out...');
+    try {
+      stopGPS();
+      if (socketRef.current && loggedInDriver?.id) {
+        socketRef.current.emit('go_offline', { driverId: loggedInDriver.id });
+      }
+      setIsDriverLive(false);
+      localStorage.setItem('is_driver_live', 'false');
+      if (jwtToken) try { await logoutDriver(jwtToken); } catch (e) {}
+      setJwtToken(null);
+      setLoggedInDriver(null);
+      setDriverLocation(null);
+      setDriverLocationBannerDismissed(false);
+      localStorage.removeItem('jwt_token');
+      localStorage.removeItem('logged_in_driver');
+      showNotification('Logged out successfully.');
+    } finally {
+      setGlobalLoading(false);
+    }
   }
 
   function makePhoneCall(number) {
@@ -349,14 +442,13 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
   const liveCount = drivers.filter(d => isLive(d)).length;
   const offlineCount = drivers.length - liveCount;
   const isLoggedInDriver = !!jwtToken;
-  const lacksLocation = isLoggedInDriver ? !hasOwnLocation : !userLocation;
-  const showLocationBanner =
-    (isLoggedInDriver && !hasOwnLocation) ||
-    (!isLoggedInDriver && locationStatus === 'denied');
+  const effectiveDriverLive = isDriverLive && !!hasOwnLocation;
+  const showDriverLocationBanner = isLoggedInDriver && !hasOwnLocation && !driverLocationBannerDismissed;
+  const showCustomerLocationBtn = !isLoggedInDriver && !userLocation;
   const mapHeaderCopy = isLoggedInDriver
-    ? (lacksLocation || locationStatus === 'denied'
+    ? (!hasOwnLocation || locationStatus === 'denied'
         ? DRIVER_MAP_HEADER_NO_LOCATION
-        : (isDriverLive ? DRIVER_MAP_HEADER_LIVE : DRIVER_MAP_HEADER_OFFLINE))
+        : (effectiveDriverLive ? DRIVER_MAP_HEADER_LIVE : DRIVER_MAP_HEADER_OFFLINE))
     : CUSTOMER_MAP_HEADER;
 
   return (
@@ -428,9 +520,9 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
               <Marker key={driver.id} latitude={lat} longitude={lng} anchor="center">
                 <div className="relative">
                   {isLive(driver) ? (
-                    <LiveDriverMarker isOrange={!!jwtToken} onClick={(e) => { e.stopPropagation(); handleSelectDriver(driver); }} />
+                    <LiveDriverMarker isOrange={!!jwtToken} zoom={viewState.zoom} onClick={(e) => { e.stopPropagation(); handleSelectDriver(driver); }} />
                   ) : (
-                    <OfflineDriverMarker onClick={(e) => { e.stopPropagation(); handleSelectDriver(driver); }} />
+                    <OfflineDriverMarker zoom={viewState.zoom} onClick={(e) => { e.stopPropagation(); handleSelectDriver(driver); }} />
                   )}
                   {/* Popup */}
                   {selectedDriver?.id === driver.id && (() => {
@@ -535,11 +627,11 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
           {jwtToken && hasOwnLocation && (
             <Marker latitude={ownDriverMarkerLat} longitude={ownDriverMarkerLng} anchor="center">
               <div className="relative z-20">
-                {isDriverLive ? (
-                  <LiveDriverMarker isOrange={false} />
+                {effectiveDriverLive ? (
+                  <LiveDriverMarker isOrange={false} zoom={viewState.zoom} />
                 ) : (
                   <div className="pointer-events-none">
-                    <OfflineDriverMarker />
+                    <OfflineDriverMarker zoom={viewState.zoom} />
                   </div>
                 )}
               </div>
@@ -558,12 +650,14 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
         {/* ── MAP OVERLAYS ── */}
         {!(isFAQ || isDriverFAQ || isTerms || isDriverTerms || isPrivacyPolicy || isContact) && (
           <>
-            {/* Top Right Locate Me */}
+            {/* Top Right Locate Me — customers with location only */}
+            {!isLoggedInDriver && userLocation && (
             <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-10">
               <button onClick={enableUserLocation} className="bg-white shadow-md rounded-full w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center text-gray-700 hover:bg-gray-50 transition-all border border-gray-100 cursor-pointer">
                 <svg className="w-[18px] h-[18px] sm:w-5 sm:h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg>
               </button>
             </div>
+            )}
 
             {!isLoggedInDriver && (
               <>
@@ -592,25 +686,6 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
                 </div>
               </>
             )}
-
-            {showLocationBanner && (
-              <div className="absolute bottom-3 left-3 right-3 sm:bottom-6 sm:left-8 sm:right-8 z-20">
-                <div className="bg-white rounded-xl shadow-lg border border-amber-200 px-4 py-3 sm:px-5 sm:py-4 flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-full bg-amber-50 flex items-center justify-center shrink-0 mt-0.5">
-                    <svg className="w-4 h-4 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm sm:text-[15px] font-semibold text-gray-800 leading-snug">{LOCATION_PERMISSION_BANNER.message}</p>
-                  </div>
-                  <button
-                    onClick={isLoggedInDriver ? () => handleToggleLive(true) : enableUserLocation}
-                    className="shrink-0 text-xs sm:text-sm font-bold text-[#0b51c1] hover:underline cursor-pointer whitespace-nowrap"
-                  >
-                    Allow
-                  </button>
-                </div>
-              </div>
-            )}
           </>
         )}
 
@@ -626,30 +701,71 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
         )}
       </main>
 
+      {/* ── DRIVER LOCATION BANNER (above footer, drivers only) ── */}
+      {showDriverLocationBanner && !(isFAQ || isDriverFAQ || isTerms || isDriverTerms || isPrivacyPolicy || isContact) && (
+        <div className="flex-shrink-0 w-full bg-white border-t border-amber-200 shadow-[0_-4px_12px_rgba(0,0,0,0.06)] px-4 py-3 sm:px-6 sm:py-3.5">
+          <div className="flex items-center gap-3 max-w-3xl mx-auto">
+            <div className="w-9 h-9 rounded-full bg-amber-50 flex items-center justify-center shrink-0">
+              <svg className="w-4 h-4 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            </div>
+            <p className="flex-1 min-w-0 text-sm sm:text-[15px] font-semibold text-gray-800 leading-snug">{LOCATION_PERMISSION_BANNER.message}</p>
+            <button
+              onClick={() => requestDriverLocation()}
+              className="shrink-0 bg-[#0b51c1] hover:bg-[#083a8c] text-white text-xs sm:text-sm font-bold px-4 py-2 rounded-lg cursor-pointer transition-colors whitespace-nowrap"
+            >
+              {LOCATION_PERMISSION_BANNER.allowButton}
+            </button>
+            <button
+              onClick={() => setDriverLocationBannerDismissed(true)}
+              className="shrink-0 w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full cursor-pointer transition-colors"
+              aria-label="Dismiss"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── CUSTOMER LOCATION ICON (above footer, icon only) ── */}
+      {showCustomerLocationBtn && !(isFAQ || isDriverFAQ || isTerms || isDriverTerms || isPrivacyPolicy || isContact) && (
+        <div className="flex-shrink-0 w-full bg-[#F0EEE9] flex justify-center py-2 px-4">
+          <button
+            onClick={enableUserLocation}
+            className="bg-white shadow-md rounded-full w-11 h-11 flex items-center justify-center text-[#0b51c1] hover:bg-gray-50 transition-all border border-gray-200 cursor-pointer"
+            aria-label="Allow location"
+            title="Allow location"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg>
+          </button>
+        </div>
+      )}
+
       {/* ── FOOTER BAR ── */}
       {!(isFAQ || isDriverFAQ || isTerms || isDriverTerms || isPrivacyPolicy || isContact) && (
-      <footer className="flex-shrink-0 w-full flex flex-col sm:flex-row justify-center items-stretch sm:items-center gap-3 sm:gap-6 bg-[#0b51c1] px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-4">
+      <footer className="flex-shrink-0 w-full flex flex-col sm:flex-row justify-center items-stretch sm:items-center gap-2.5 sm:gap-6 bg-[#0b51c1] px-4 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-2.5">
         {!jwtToken ? (
           <>
-            <button onClick={() => setShowSignup(true)} className="w-full sm:w-auto text-white font-bold transition-all shadow-md hover:shadow-lg cursor-pointer transform hover:-translate-y-0.5 bg-[#144cb8] py-3 px-6 rounded-lg text-sm sm:py-3.5 sm:px-9 sm:rounded-[8px] sm:text-base">
+            <button onClick={() => setShowSignup(true)} className="w-full sm:w-auto text-white font-bold transition-all shadow-md hover:shadow-lg cursor-pointer transform hover:-translate-y-0.5 bg-[#144cb8] py-2.5 px-6 rounded-lg text-sm sm:py-3 sm:px-9 sm:rounded-[8px] sm:text-base">
               Become a Driver
             </button>
-            <button onClick={() => setShowLogin(true)} className="w-full sm:w-auto text-white font-bold transition-all shadow-md hover:shadow-lg cursor-pointer transform hover:-translate-y-0.5 bg-[#1bb54f] py-3 px-6 rounded-lg text-sm sm:py-3.5 sm:px-11 sm:rounded-[8px] sm:text-base">
+            <button onClick={() => setShowLogin(true)} className="w-full sm:w-auto text-white font-bold transition-all shadow-md hover:shadow-lg cursor-pointer transform hover:-translate-y-0.5 bg-[#1bb54f] py-2.5 px-6 rounded-lg text-sm sm:py-3 sm:px-11 sm:rounded-[8px] sm:text-base">
               Go Live
             </button>
           </>
         ) : (
           <button
-            onClick={() => handleToggleLive(!isDriverLive)}
-            className={`w-full sm:w-auto text-white font-bold transition-all shadow-md hover:shadow-lg cursor-pointer transform hover:-translate-y-0.5 py-3 px-6 rounded-lg text-sm sm:py-3.5 sm:px-12 sm:rounded-[8px] sm:text-base ${
-              isDriverLive ? 'bg-red-500 hover:bg-red-600' : 'bg-[#1bb54f] hover:bg-[#16a34a]'
+            onClick={() => handleToggleLive(!effectiveDriverLive)}
+            className={`w-full sm:w-auto text-white font-bold transition-all shadow-md hover:shadow-lg cursor-pointer transform hover:-translate-y-0.5 py-2.5 px-6 rounded-lg text-sm sm:py-3 sm:px-12 sm:rounded-[8px] sm:text-base ${
+              effectiveDriverLive ? 'bg-red-500 hover:bg-red-600' : 'bg-[#1bb54f] hover:bg-[#16a34a]'
             }`}
           >
-            {isDriverLive ? 'Go Offline' : 'Go Live Now'}
+            {effectiveDriverLive ? 'Go Offline' : 'Go Live Now'}
           </button>
         )}
       </footer>
       )}
+
+      {globalLoading && <PageLoader message={globalLoadingMessage} />}
 
       {/* ── MODALS ── */}
       {showLogin && (
@@ -659,9 +775,23 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
           onSignUpPressed={() => { setShowLogin(false); setShowSignup(true); }}
           onPendingApproval={(email) => { setShowLogin(false); showNotification(`Account pending approval.`, false); }}
           onForgotPassword={() => setShowForgotPassword(true)}
+          onLoadingChange={(loading, message) => {
+            if (loading) {
+              setGlobalLoading(true);
+              setGlobalLoadingMessage(message || 'Signing in...');
+            }
+          }}
         />
       )}
-      {showSignup && <SignupModal onClose={() => setShowSignup(false)} />}
+      {showSignup && (
+        <SignupModal
+          onClose={() => setShowSignup(false)}
+          onLoadingChange={(loading) => {
+            setGlobalLoading(loading);
+            setGlobalLoadingMessage(loading ? 'Creating your account...' : 'Loading...');
+          }}
+        />
+      )}
       {showForgotPassword && (
         <ForgotPasswordModal 
           onClose={() => setShowForgotPassword(false)}

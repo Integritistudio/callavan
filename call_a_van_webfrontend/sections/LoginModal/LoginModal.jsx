@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { loginDriver } from '@/lib/api';
 import { showNotification } from '@/components/ui/ToastManager';
 
-export default function LoginModal({ onClose, onLoginSuccess, onSignUpPressed, onPendingApproval, onForgotPassword }) {
+export default function LoginModal({ onClose, onLoginSuccess, onSignUpPressed, onPendingApproval, onForgotPassword, onLoadingChange }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -36,6 +36,8 @@ export default function LoginModal({ onClose, onLoginSuccess, onSignUpPressed, o
     }
 
     setLoading(true);
+    onLoadingChange?.(true, 'Signing in...');
+    let succeeded = false;
     try {
       const data = await loginDriver({ email, password });
       if (data.status === 'pending') {
@@ -43,12 +45,14 @@ export default function LoginModal({ onClose, onLoginSuccess, onSignUpPressed, o
         onPendingApproval(email);
         return;
       }
+      succeeded = true;
       onLoginSuccess(data.token, data.driver);
       onClose();
     } catch (err) {
       showNotification(err.message || 'Login failed.', true);
     } finally {
       setLoading(false);
+      if (!succeeded) onLoadingChange?.(false);
     }
   }
 

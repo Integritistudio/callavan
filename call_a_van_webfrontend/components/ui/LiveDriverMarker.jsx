@@ -1,13 +1,25 @@
 // components/ui/LiveDriverMarker.jsx
 // Mirrors Flutter's RadarAnimationMarker — live green/orange pulsing van
 
-export default function LiveDriverMarker({ isOrange = false, onClick }) {
-  const color = isOrange ? '#f97316' : '#22c55e'; // Tailwind orange-500 and green-500
+import { getVanMarkerScale } from '@/lib/mapMarkerScale';
+
+export default function LiveDriverMarker({ isOrange = false, zoom = 14, onClick }) {
+  const color = isOrange ? '#f97316' : '#22c55e';
   const ringColor = isOrange ? 'rgba(249, 115, 22, 1)' : 'rgba(34, 197, 94, 1)';
+  const scale = getVanMarkerScale(zoom);
 
   return (
-    <div className={`relative flex items-center justify-center cursor-pointer`} style={{ width: 120, height: 120 }} onClick={onClick}>
-      {/* Three pulsing radar rings */}
+    <div
+      className="relative flex items-center justify-center cursor-pointer"
+      style={{
+        width: 120,
+        height: 120,
+        transform: `scale(${scale})`,
+        transformOrigin: 'center center',
+        transition: 'transform 0.25s ease-out',
+      }}
+      onClick={onClick}
+    >
       {[1, 2, 3].map((i) => (
         <div
           key={i}
@@ -20,14 +32,13 @@ export default function LiveDriverMarker({ isOrange = false, onClick }) {
           }}
         />
       ))}
-      {/* Outer White border with inner solid color */}
       <div
         className="relative flex items-center justify-center rounded-full z-10"
         style={{
           width: 48,
           height: 48,
-          backgroundColor: color, // Inner color
-          border: '2.5px solid white', // Reduced white outer ring
+          backgroundColor: color,
+          border: '2.5px solid white',
           boxShadow: '0 4px 10px rgba(0,0,0,0.3)',
         }}
       >

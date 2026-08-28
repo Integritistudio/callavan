@@ -1,17 +1,24 @@
 // components/ui/OfflineDriverMarker.jsx
 // Mirrors Flutter's OfflineDriverMarker — grey circle for offline drivers
 
-export default function OfflineDriverMarker({ onClick }) {
+import { getVanMarkerScale } from '@/lib/mapMarkerScale';
+
+export default function OfflineDriverMarker({ zoom = 14, onClick }) {
+  const scale = getVanMarkerScale(zoom);
+
   return (
     <div
       onClick={onClick}
-      className="relative flex items-center justify-center rounded-full cursor-pointer hover:scale-105 transition-transform z-10"
+      className="relative flex items-center justify-center rounded-full cursor-pointer z-10"
       style={{
         width: 48,
         height: 48,
-        backgroundColor: '#9ca3af', // Tailwind gray-400
-        border: '2.5px solid white', // Reduced white outer ring
+        backgroundColor: '#9ca3af',
+        border: '2.5px solid white',
         boxShadow: '0 4px 10px rgba(0,0,0,0.3)',
+        transform: `scale(${scale})`,
+        transformOrigin: 'center center',
+        transition: 'transform 0.25s ease-out',
       }}
     >
       <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
