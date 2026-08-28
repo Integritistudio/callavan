@@ -66,6 +66,18 @@ const initializeDatabase = async () => {
       ADD COLUMN IF NOT EXISTS is_logged_in BOOLEAN DEFAULT false;
     `);
 
+    // Create admins table for secure administrative access
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS admins (
+        id SERIAL PRIMARY KEY,
+        email VARCHAR(100) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        reset_password_otp VARCHAR(10),
+        reset_password_expires TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
     console.log('✅ [Database] Schema integrity checks verified.');
 
   } catch (err) {

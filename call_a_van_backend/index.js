@@ -5,6 +5,7 @@ const path = require('path');
 const http = require('http');
 const { Server } = require('socket.io');
 const authRoutes = require('./routes/authRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 const initializeDatabase = require('./config/dbInit');
 const db = require('./config/db');
 
@@ -36,6 +37,9 @@ app.get('/', (req, res) => {
 
 // Bind auth routes under /api/drivers prefix
 app.use('/api/drivers', authRoutes);
+
+// Bind admin routes under /api/admin prefix
+app.use('/api/admin', adminRoutes);
 
 // Bind io instance to app so express controllers can access it
 app.set('io', io);
