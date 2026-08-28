@@ -24,6 +24,11 @@ import TermsContent from '@/components/ui/TermsContent';
 import DriverTermsContent from '@/components/ui/DriverTermsContent';
 import PrivacyPolicyContent from '@/components/ui/PrivacyPolicyContent';
 import ContactContent from '@/components/ui/ContactContent';
+import {
+  CUSTOMER_MAP_HEADER,
+  DRIVER_MAP_HEADER_LIVE,
+  DRIVER_MAP_HEADER_OFFLINE,
+} from '@/constants/mapCopy';
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || '';
 const MAPBOX_USERNAME = process.env.NEXT_PUBLIC_MAPBOX_USERNAME || 'mapbox';
@@ -89,6 +94,7 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
         setJwtToken(token);
         setLoggedInDriver(driver);
         const wasLive = localStorage.getItem('is_driver_live') === 'true';
+        setIsDriverLive(wasLive);
         if (wasLive) {
           const socket = getSocket();
           socketRef.current = socket;
@@ -289,12 +295,16 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
   const profileUrl = loggedInDriver?.profileImageUrl ? getCorrectImageUrl(loggedInDriver.profileImageUrl) : null;
   const liveCount = drivers.filter(d => isLive(d)).length;
   const offlineCount = drivers.length - liveCount;
+  const isLoggedInDriver = !!jwtToken;
+  const mapHeaderCopy = isLoggedInDriver
+    ? (isDriverLive ? DRIVER_MAP_HEADER_LIVE : DRIVER_MAP_HEADER_OFFLINE)
+    : CUSTOMER_MAP_HEADER;
 
   return (
     <div className={`flex flex-col w-full overflow-x-hidden font-sans ${(isFAQ || isDriverFAQ || isTerms || isDriverTerms || isPrivacyPolicy || isContact) ? 'min-h-screen' : 'h-screen overflow-hidden'}`}>
       
       {/* ── HEADER (Solid Blue exact match) ── */}
-      <header className="flex-shrink-0 w-full flex flex-col" style={{ backgroundColor: '#0b51c1', minHeight: '180px', padding: '32px 40px' }}>
+      <header className="flex-shrink-0 w-full flex flex-col" style={{ backgroundColor: '#0b51c1', minHeight: '180px', padding: '20px 40px' }}>
         {/* Top Nav Line */}
         <div className="flex justify-between items-center w-full">
           {/* Left Logo */}
@@ -326,8 +336,8 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
 
         {/* Center Title Section */}
         <div className="flex-1 flex flex-col items-center justify-end text-center mt-4">
-          <h1 className="text-white font-bold tracking-tight" style={{ fontSize: '34px', lineHeight: '1.2' }}>See Who is Live Near You</h1>
-          <p className="text-white font-normal mt-2" style={{ fontSize: '15px' }}>Local drivers. Real-time availability. Call directly</p>
+          <h1 className="text-white font-bold tracking-tight" style={{ fontSize: '34px', lineHeight: '1.2' }}>{mapHeaderCopy.title}</h1>
+          <p className="text-white font-normal mt-2" style={{ fontSize: '15px' }}>{mapHeaderCopy.subtitle}</p>
         </div>
       </header>
 
@@ -496,26 +506,30 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
               </button>
             </div>
 
-            {/* Bottom Left Status Box */}
-            <div className="absolute bottom-10 left-8 z-10 bg-white rounded-xl shadow-lg border border-gray-100 min-w-[160px] p-5">
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Status</p>
-              <div className="flex items-center gap-3 mb-2.5">
-                <div className="w-3.5 h-3.5 bg-[#22c55e] rounded-full shadow-sm"></div>
-                <p className="text-sm font-semibold text-gray-800">{liveCount} Available</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="w-3.5 h-3.5 bg-gray-400 rounded-full shadow-sm"></div>
-                <p className="text-sm font-semibold text-gray-800">{offlineCount} Offline</p>
-              </div>
-            </div>
+            {!isLoggedInDriver && (
+              <>
+                {/* Bottom Left Status Box */}
+                <div className="absolute bottom-10 left-8 z-10 bg-white rounded-xl shadow-lg border border-gray-100 min-w-[160px] p-5">
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Status</p>
+                  <div className="flex items-center gap-3 mb-2.5">
+                    <div className="w-3.5 h-3.5 bg-[#22c55e] rounded-full shadow-sm"></div>
+                    <p className="text-sm font-semibold text-gray-800">{liveCount} Available</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="w-3.5 h-3.5 bg-gray-400 rounded-full shadow-sm"></div>
+                    <p className="text-sm font-semibold text-gray-800">{offlineCount} Offline</p>
+                  </div>
+                </div>
 
-            {/* Bottom Right Live Count */}
-            <div className="absolute bottom-10 right-8 z-10">
-              <div className="bg-white rounded-full py-3.5 px-6 shadow-lg border border-gray-100 flex items-center gap-3">
-                <div className="w-3.5 h-3.5 bg-[#22c55e] rounded-full border border-green-600/20 shadow-sm"></div>
-                <span className="text-sm font-bold text-gray-800 tracking-wide">{liveCount} Drivers Online Near You</span>
-              </div>
-            </div>
+                {/* Bottom Right Live Count */}
+                <div className="absolute bottom-10 right-8 z-10">
+                  <div className="bg-white rounded-full py-3.5 px-6 shadow-lg border border-gray-100 flex items-center gap-3">
+                    <div className="w-3.5 h-3.5 bg-[#22c55e] rounded-full border border-green-600/20 shadow-sm"></div>
+                    <span className="text-sm font-bold text-gray-800 tracking-wide">{liveCount} Drivers Online Near You</span>
+                  </div>
+                </div>
+              </>
+            )}
           </>
         )}
 
