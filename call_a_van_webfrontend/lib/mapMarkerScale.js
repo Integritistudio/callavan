@@ -1,22 +1,25 @@
-/** Smooth van marker scale based on map zoom (full size at zoom 14+). */
-const BASE_MARKER_SCALE = 0.88;
+/** Shared van marker sizing — keep live & offline consistent. */
+export const VAN_ICON_SIZE = 44;
+export const VAN_SVG_SIZE = 20;
+export const VAN_BORDER = '2.5px solid white';
+export const VAN_SHADOW = '0 3px 8px rgba(0,0,0,0.3)';
+/** Room for radar rings pulsing to 2.5× icon size */
+export const LIVE_MARKER_CONTAINER = Math.round(VAN_ICON_SIZE * 2.5);
 
+/** Smooth van marker scale based on map zoom (full size at zoom 14+). */
 export function getVanMarkerScale(zoom) {
   const baseZoom = 14;
   const minZoom = 9;
   const maxZoom = 18;
-  const minScale = 0.36;
+  const minScale = 0.42;
   const maxScale = 1;
 
   const z = Math.min(maxZoom, Math.max(minZoom, zoom));
 
-  let scale;
   if (z <= baseZoom) {
     const t = (z - minZoom) / (baseZoom - minZoom);
-    scale = minScale + (1 - minScale) * t;
-  } else {
-    scale = maxScale;
+    return minScale + (maxScale - minScale) * t;
   }
 
-  return scale * BASE_MARKER_SCALE;
+  return maxScale;
 }
