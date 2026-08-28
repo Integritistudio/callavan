@@ -6,7 +6,7 @@ export default function LiveDriverMarker({ isOrange = false, onClick }) {
   const ringColor = isOrange ? 'rgba(249, 115, 22, 1)' : 'rgba(34, 197, 94, 1)';
 
   return (
-    <div className={`relative flex items-center justify-center ${onClick ? 'cursor-pointer' : ''}`} style={{ width: 120, height: 120 }} onClick={onClick}>
+    <div className={`relative flex items-center justify-center cursor-pointer`} style={{ width: 120, height: 120 }} onClick={onClick}>
       {/* Three pulsing radar rings */}
       {[1, 2, 3].map((i) => (
         <div

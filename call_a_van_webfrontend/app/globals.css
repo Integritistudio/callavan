@@ -31,9 +31,8 @@
 ───────────────────────────────────────────────── */
 
 html, body {
-  height: 100%;
+  min-height: 100%;
   font-family: Arial, sans-serif;
-  overflow: hidden;
 }
 
 /* ─────────────────────────────────────────────────
@@ -180,3 +179,16 @@ html, body {
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
+
+/* ─────────────────────────────────────────────────
+   FORCE DEFAULT CURSOR ON MAP
+   Ensures no 'grab' or 'pointer' hand cursor appears 
+   when hovering or clicking anywhere on the map/markers.
+───────────────────────────────────────────────── */
+.mapboxgl-canvas-container,
+.mapboxgl-canvas-container.mapboxgl-interactive,
+.mapboxgl-canvas-container.mapboxgl-interactive:active,
+.mapboxgl-map,
+.mapboxgl-canvas {
+  cursor: default !important;
+}

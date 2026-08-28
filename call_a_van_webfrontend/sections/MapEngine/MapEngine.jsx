@@ -18,17 +18,25 @@ import LoginModal from '@/sections/LoginModal/LoginModal';
 import SignupModal from '@/sections/SignupModal/SignupModal';
 import ProfileModal from '@/sections/ProfileModal/ProfileModal';
 import ForgotPasswordModal from '@/sections/ForgotPasswordModal/ForgotPasswordModal';
+import { useRouter } from 'next/navigation';
+import FAQContent from '@/components/ui/FAQContent';
+import DriverFAQContent from '@/components/ui/DriverFAQContent';
+import TermsContent from '@/components/ui/TermsContent';
+import DriverTermsContent from '@/components/ui/DriverTermsContent';
+import PrivacyPolicyContent from '@/components/ui/PrivacyPolicyContent';
+import ContactContent from '@/components/ui/ContactContent';
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || '';
 const MAPBOX_USERNAME = process.env.NEXT_PUBLIC_MAPBOX_USERNAME || 'mapbox';
-const MAPBOX_STYLE_ID = process.env.NEXT_PUBLIC_MAPBOX_STYLE_ID || 'streets-v12';
+const MAPBOX_STYLE_ID = process.env.NEXT_PUBLIC_MAPBOX_STYLE_ID || 'cm091iigj00im01pg095j86n1';
 const MAP_STYLE = `mapbox://styles/${MAPBOX_USERNAME}/${MAPBOX_STYLE_ID}`;
 
 function isLive(driver) {
   return driver.isLive === true || driver.isLive === 1 || driver.isLive === 'true';
 }
 
-export default function MapEngine({ isDriverMode, initialToken, initialDriver }) {
+export default function MapEngine({ isDriverMode, initialToken, initialDriver, isFAQ = false, isDriverFAQ = false, isTerms = false, isDriverTerms = false, isPrivacyPolicy = false, isContact = false }) {
+  const router = useRouter();
   const [jwtToken, setJwtToken] = useState(initialToken || null);
   const [loggedInDriver, setLoggedInDriver] = useState(initialDriver || null);
   const [isDriverLive, setIsDriverLive] = useState(false);
@@ -275,10 +283,10 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver })
   const offlineCount = drivers.length - liveCount;
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden font-sans">
+    <div className={`flex flex-col w-full overflow-x-hidden font-sans ${(isFAQ || isDriverFAQ || isTerms || isDriverTerms || isPrivacyPolicy || isContact) ? 'min-h-screen' : 'h-screen overflow-hidden'}`}>
       
       {/* ── HEADER (Solid Blue exact match) ── */}
-      <header className="flex-shrink-0 w-full flex flex-col" style={{ backgroundColor: '#1052c9', minHeight: '180px', padding: '32px 40px' }}>
+      <header className="flex-shrink-0 w-full flex flex-col" style={{ backgroundColor: '#0b51c1', minHeight: '180px', padding: '32px 40px' }}>
         {/* Top Nav Line */}
         <div className="flex justify-between items-center w-full">
           {/* Left Logo */}
@@ -316,19 +324,26 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver })
       </header>
 
       {/* ── MAP AREA ── */}
-      <main className="flex-1 relative bg-[#F0EEE9]">
-        {!isMapReady && <MapSkeleton />}
-        <Map
-          mapboxAccessToken={MAPBOX_TOKEN}
-          mapStyle={MAP_STYLE}
-          {...viewState}
-          onMove={(e) => setViewState(e.viewState)}
-          onLoad={() => setIsMapReady(true)}
-          onClick={() => setSelectedDriver(null)}
-          style={{ width: '100%', height: '100%' }}
-          attributionControl={false}
-          cursor="default"
-        >
+      <main className="flex-1 relative bg-[#F0EEE9] flex flex-col">
+        <div className="absolute inset-0 z-0">
+          {!isMapReady && <MapSkeleton />}
+          <Map
+            mapboxAccessToken={MAPBOX_TOKEN}
+            mapStyle={MAP_STYLE}
+            {...viewState}
+            onMove={(e) => setViewState(e.viewState)}
+            onLoad={() => setIsMapReady(true)}
+            onClick={() => setSelectedDriver(null)}
+            style={{ width: '100%', height: '100%' }}
+            attributionControl={false}
+            cursor="default"
+            scrollZoom={!(isFAQ || isDriverFAQ || isTerms || isDriverTerms || isPrivacyPolicy || isContact)}
+            dragPan={!(isFAQ || isDriverFAQ || isTerms || isDriverTerms || isPrivacyPolicy || isContact)}
+            dragRotate={!(isFAQ || isDriverFAQ || isTerms || isDriverTerms || isPrivacyPolicy || isContact)}
+            keyboard={!(isFAQ || isDriverFAQ || isTerms || isDriverTerms || isPrivacyPolicy || isContact)}
+            doubleClickZoom={!(isFAQ || isDriverFAQ || isTerms || isDriverTerms || isPrivacyPolicy || isContact)}
+            touchZoomRotate={!(isFAQ || isDriverFAQ || isTerms || isDriverTerms || isPrivacyPolicy || isContact)}
+          >
           {/* Other Drivers */}
           {drivers.filter((d) => d.id !== loggedInDriver?.id).map((driver) => {
             const lat = parseFloat(driver.latitude);
@@ -463,39 +478,56 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver })
             </Marker>
           )}
         </Map>
+        </div>
 
         {/* ── MAP OVERLAYS ── */}
-        {/* Top Right Locate Me */}
-        <div className="absolute top-4 right-4 z-10">
-          <button onClick={enableUserLocation} className="bg-white shadow-md rounded-full w-10 h-10 flex items-center justify-center text-gray-700 hover:bg-gray-50 transition-all border border-gray-100">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg>
-          </button>
-        </div>
+        {!(isFAQ || isDriverFAQ || isTerms || isDriverTerms || isPrivacyPolicy || isContact) && (
+          <>
+            {/* Top Right Locate Me */}
+            <div className="absolute top-4 right-4 z-10">
+              <button onClick={enableUserLocation} className="bg-white shadow-md rounded-full w-10 h-10 flex items-center justify-center text-gray-700 hover:bg-gray-50 transition-all border border-gray-100 cursor-pointer">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg>
+              </button>
+            </div>
 
-        {/* Bottom Left Status Box */}
-        <div className="absolute bottom-10 left-8 z-10 bg-white rounded-xl shadow-lg border border-gray-100 min-w-[160px] p-5">
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Status</p>
-          <div className="flex items-center gap-3 mb-2.5">
-            <div className="w-3.5 h-3.5 bg-[#22c55e] rounded-full shadow-sm"></div>
-            <p className="text-sm font-semibold text-gray-800">{liveCount} Available</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-3.5 h-3.5 bg-gray-400 rounded-full shadow-sm"></div>
-            <p className="text-sm font-semibold text-gray-800">{offlineCount} Offline</p>
-          </div>
-        </div>
+            {/* Bottom Left Status Box */}
+            <div className="absolute bottom-10 left-8 z-10 bg-white rounded-xl shadow-lg border border-gray-100 min-w-[160px] p-5">
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Status</p>
+              <div className="flex items-center gap-3 mb-2.5">
+                <div className="w-3.5 h-3.5 bg-[#22c55e] rounded-full shadow-sm"></div>
+                <p className="text-sm font-semibold text-gray-800">{liveCount} Available</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="w-3.5 h-3.5 bg-gray-400 rounded-full shadow-sm"></div>
+                <p className="text-sm font-semibold text-gray-800">{offlineCount} Offline</p>
+              </div>
+            </div>
 
-        {/* Bottom Right Live Count */}
-        <div className="absolute bottom-10 right-8 z-10">
-          <div className="bg-white rounded-full py-3.5 px-6 shadow-lg border border-gray-100 flex items-center gap-3">
-            <div className="w-3.5 h-3.5 bg-[#22c55e] rounded-full border border-green-600/20 shadow-sm"></div>
-            <span className="text-sm font-bold text-gray-800 tracking-wide">{liveCount} Drivers Online Near You</span>
+            {/* Bottom Right Live Count */}
+            <div className="absolute bottom-10 right-8 z-10">
+              <div className="bg-white rounded-full py-3.5 px-6 shadow-lg border border-gray-100 flex items-center gap-3">
+                <div className="w-3.5 h-3.5 bg-[#22c55e] rounded-full border border-green-600/20 shadow-sm"></div>
+                <span className="text-sm font-bold text-gray-800 tracking-wide">{liveCount} Drivers Online Near You</span>
+              </div>
+            </div>
+          </>
+        )}
+
+        {(isFAQ || isDriverFAQ || isTerms || isDriverTerms || isPrivacyPolicy || isContact) && (
+          <div className="relative z-10 w-full flex-1 flex flex-col h-full">
+            {isFAQ && <FAQContent />}
+            {isDriverFAQ && <DriverFAQContent />}
+            {isTerms && <TermsContent />}
+            {isDriverTerms && <DriverTermsContent />}
+            {isPrivacyPolicy && <PrivacyPolicyContent />}
+            {isContact && <ContactContent />}
           </div>
-        </div>
+        )}
       </main>
 
       {/* ── FOOTER BAR ── */}
-      <footer className="flex-shrink-0 flex items-center justify-center gap-8 z-20" style={{ backgroundColor: '#1052c9', minHeight: '80px' }}>
+      {!(isFAQ || isDriverFAQ || isTerms || isDriverTerms || isPrivacyPolicy || isContact) && (
+      <footer className="flex-shrink-0 w-full flex justify-center gap-6" style={{ backgroundColor: '#0b51c1', padding: '16px 0' }}>
         {!jwtToken ? (
           <>
             <button onClick={() => setShowSignup(true)} className="text-white font-bold transition-all shadow-md hover:shadow-lg cursor-pointer transform hover:-translate-y-0.5" style={{ backgroundColor: '#144cb8', padding: '14px 36px', borderRadius: '8px', fontSize: '16px' }}>
@@ -511,6 +543,7 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver })
           </button>
         )}
       </footer>
+      )}
 
       {/* ── MODALS ── */}
       {showLogin && (
@@ -538,22 +571,64 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver })
 
       {/* HAMBURGER MENU MODAL */}
       {showHamburger && (
-        <div className="fixed inset-0 bg-black/60 z-[9999] flex justify-end" onClick={() => setShowHamburger(false)}>
-          <div className="bg-white w-72 h-full p-6 shadow-2xl transform transition-transform animate-slide-in-right" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-8 border-b pb-4">
-              <h2 className="font-bold text-xl text-[#003366]">Menu</h2>
-              <button onClick={() => setShowHamburger(false)} className="text-gray-400 hover:text-black text-xl">✕</button>
+        <div className="fixed inset-0 bg-transparent z-[9999] flex items-center justify-center p-4" onClick={() => setShowHamburger(false)}>
+          <div className="bg-white w-full max-w-[340px] rounded-[16px] overflow-hidden shadow-2xl border border-gray-300 animate-fade-in" onClick={e => e.stopPropagation()} style={{ animation: 'modal-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
+            
+            {/* Header (Blue) */}
+            <div className="bg-[#0b51c1] px-4 py-3.5 flex justify-between items-center">
+              <img 
+                src="https://cdn.prod.website-files.com/699f24e36021db019f687184/69d5648b03176e73b702b52f_callvan1.png" 
+                alt="Call-A-Van.live" 
+                style={{ height: '26px' }}
+                className="object-contain"
+              />
+              <button onClick={() => setShowHamburger(false)} className="text-white hover:opacity-80 p-1 cursor-pointer">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              </button>
             </div>
-            <div className="space-y-4">
-              {['FAQ', 'Driver FAQ', 'Terms of Service', 'Driver Terms', 'Privacy Policy', 'Contact'].map(link => (
-                <a key={link} href="#" className="block text-gray-700 font-medium hover:text-[#003366] py-2 border-b border-gray-50 text-sm">{link}</a>
+
+            {/* Menu Items */}
+            <div className="px-4 py-2">
+              {['FAQ', 'Driver FAQ', 'Terms of Service', 'Driver Terms', 'Privacy Policy', 'Contact'].map((link, idx, arr) => (
+                <button 
+                  key={link} 
+                  type="button"
+                  onClick={() => {
+                    setShowHamburger(false);
+                    if (link === 'FAQ') {
+                      router.push('/faq');
+                    } else if (link === 'Driver FAQ') {
+                      router.push('/driver-faq');
+                    } else if (link === 'Terms of Service') {
+                      router.push('/terms-conditions');
+                    } else if (link === 'Driver Terms') {
+                      router.push('/driver-terms');
+                    } else if (link === 'Privacy Policy') {
+                      router.push('/privacy-policy');
+                    } else if (link === 'Contact') {
+                      router.push('/contact');
+                    }
+                  }} 
+                  className={`w-full flex items-center justify-between py-4 text-gray-800 hover:bg-gray-50 text-[15px] font-medium transition-colors cursor-pointer ${idx !== arr.length - 1 ? 'border-b border-gray-100' : ''}`}
+                >
+                  {link}
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0b51c1" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </button>
               ))}
             </div>
+
+            {/* Login Button (If Not Logged In) */}
             {!jwtToken && (
-              <button onClick={() => { setShowHamburger(false); setShowLogin(true); }} className="mt-8 bg-[#0a8449] hover:bg-[#086c3b] text-white py-3 px-6 rounded-lg w-full font-bold text-sm">
-                Driver Login
-              </button>
+              <div className="px-4 pb-5 pt-2">
+                <button 
+                  onClick={() => { setShowHamburger(false); setShowLogin(true); }} 
+                  className="w-full bg-[#22c55e] hover:bg-[#16a34a] text-white py-3.5 rounded-[8px] font-bold text-[15px] shadow-sm transition-colors cursor-pointer"
+                >
+                  Driver Login
+                </button>
+              </div>
             )}
+            
           </div>
         </div>
       )}
