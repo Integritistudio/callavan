@@ -1,4 +1,4 @@
-package com.example.call_a_van
+package com.integritistudio.callavan
 
 import io.flutter.embedding.android.FlutterActivity
 
