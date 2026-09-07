@@ -24,6 +24,7 @@ import TermsContent from '@/components/ui/TermsContent';
 import DriverTermsContent from '@/components/ui/DriverTermsContent';
 import PrivacyPolicyContent from '@/components/ui/PrivacyPolicyContent';
 import ContactContent from '@/components/ui/ContactContent';
+import DeleteAccountContent from '@/components/ui/DeleteAccountContent';
 import PageLoader from '@/components/ui/PageLoader';
 import LocationHelpModal from '@/components/ui/LocationHelpModal';
 import { requestGeolocationPermission, loadGrantedLocation } from '@/lib/geolocation';
@@ -52,8 +53,9 @@ function readSavedDriverLocation() {
   return { lat, lng };
 }
 
-export default function MapEngine({ isDriverMode, initialToken, initialDriver, isFAQ = false, isDriverFAQ = false, isTerms = false, isDriverTerms = false, isPrivacyPolicy = false, isContact = false }) {
+export default function MapEngine({ isDriverMode, initialToken, initialDriver, isFAQ = false, isDriverFAQ = false, isTerms = false, isDriverTerms = false, isPrivacyPolicy = false, isContact = false, isDeleteAccount = false }) {
   const router = useRouter();
+  const isContentPage = isFAQ || isDriverFAQ || isTerms || isDriverTerms || isPrivacyPolicy || isContact || isDeleteAccount;
   const [jwtToken, setJwtToken] = useState(initialToken || null);
   const [loggedInDriver, setLoggedInDriver] = useState(initialDriver || null);
   const [isDriverLive, setIsDriverLive] = useState(false);
@@ -509,10 +511,10 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
       clearTimeout(t2);
       window.removeEventListener('resize', resizeMap);
     };
-  }, [showDriverLocationBanner, hasOwnLocation, isFAQ, isDriverFAQ, isTerms, isDriverTerms, isPrivacyPolicy, isContact]);
+  }, [showDriverLocationBanner, hasOwnLocation, isContentPage]);
 
   return (
-    <div className={`flex flex-col w-full overflow-x-hidden font-sans ${(isFAQ || isDriverFAQ || isTerms || isDriverTerms || isPrivacyPolicy || isContact) ? 'min-h-screen' : 'h-[100dvh] sm:h-screen overflow-hidden'}`}>
+    <div className={`flex flex-col w-full overflow-x-hidden font-sans ${isContentPage ? 'min-h-screen' : 'h-[100dvh] sm:h-screen overflow-hidden'}`}>
       
       {/* ── HEADER (Solid Blue exact match) ── */}
       <header className="flex-shrink-0 w-full flex flex-col bg-[#0b51c1] px-4 py-4 min-h-[148px] sm:px-8 sm:py-5 sm:min-h-[168px] md:px-10 md:min-h-[180px]">
@@ -573,12 +575,12 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
             style={{ width: '100%', height: '100%', minHeight: '100%' }}
             attributionControl={false}
             cursor="default"
-            scrollZoom={!(isFAQ || isDriverFAQ || isTerms || isDriverTerms || isPrivacyPolicy || isContact)}
-            dragPan={!(isFAQ || isDriverFAQ || isTerms || isDriverTerms || isPrivacyPolicy || isContact)}
-            dragRotate={!(isFAQ || isDriverFAQ || isTerms || isDriverTerms || isPrivacyPolicy || isContact)}
-            keyboard={!(isFAQ || isDriverFAQ || isTerms || isDriverTerms || isPrivacyPolicy || isContact)}
-            doubleClickZoom={!(isFAQ || isDriverFAQ || isTerms || isDriverTerms || isPrivacyPolicy || isContact)}
-            touchZoomRotate={!(isFAQ || isDriverFAQ || isTerms || isDriverTerms || isPrivacyPolicy || isContact)}
+            scrollZoom={!isContentPage}
+            dragPan={!isContentPage}
+            dragRotate={!isContentPage}
+            keyboard={!isContentPage}
+            doubleClickZoom={!isContentPage}
+            touchZoomRotate={!isContentPage}
           >
           {/* Other Drivers */}
           {drivers.filter((d) => d.id !== loggedInDriver?.id).map((driver) => {
@@ -717,7 +719,7 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
         </div>
 
         {/* ── MAP OVERLAYS ── */}
-        {!(isFAQ || isDriverFAQ || isTerms || isDriverTerms || isPrivacyPolicy || isContact) && (
+        {!isContentPage && (
           <>
             {/* Top Right Locate — customers only (icon); fly if granted, else browser prompt */}
             {!isLoggedInDriver && (
@@ -765,7 +767,7 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
           </>
         )}
 
-        {(isFAQ || isDriverFAQ || isTerms || isDriverTerms || isPrivacyPolicy || isContact) && (
+        {isContentPage && (
           <div className="relative z-10 w-full flex-1 flex flex-col h-full">
             {isFAQ && <FAQContent />}
             {isDriverFAQ && <DriverFAQContent />}
@@ -773,12 +775,13 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
             {isDriverTerms && <DriverTermsContent />}
             {isPrivacyPolicy && <PrivacyPolicyContent />}
             {isContact && <ContactContent />}
+            {isDeleteAccount && <DeleteAccountContent />}
           </div>
         )}
       </main>
 
       {/* ── DRIVER LOCATION BANNER (above footer, drivers only) ── */}
-      {isLoggedInDriver && !(isFAQ || isDriverFAQ || isTerms || isDriverTerms || isPrivacyPolicy || isContact) && (
+      {isLoggedInDriver && !isContentPage && (
         <div
           className={`flex-shrink-0 w-full overflow-hidden transition-all duration-300 ease-in-out ${
             showDriverLocationBanner ? 'max-h-[100px] opacity-100' : 'max-h-0 opacity-0 pointer-events-none'
@@ -809,7 +812,7 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
       )}
 
       {/* ── FOOTER BAR ── */}
-      {!(isFAQ || isDriverFAQ || isTerms || isDriverTerms || isPrivacyPolicy || isContact) && (
+      {!isContentPage && (
       <footer className="flex-shrink-0 w-full flex flex-col sm:flex-row justify-center items-stretch sm:items-center gap-2.5 sm:gap-6 bg-[#0b51c1] px-4 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-2.5">
         {!jwtToken ? (
           <>
@@ -900,7 +903,7 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
 
             {/* Menu Items */}
             <div className="px-4 py-2">
-              {['FAQ', 'Driver FAQ', 'Terms of Service', 'Driver Terms', 'Privacy Policy', 'Contact'].map((link, idx, arr) => (
+              {['FAQ', 'Driver FAQ', 'Terms of Service', 'Driver Terms', 'Privacy Policy', 'Delete Account', 'Contact'].map((link, idx, arr) => (
                 <button 
                   key={link} 
                   type="button"
@@ -916,6 +919,8 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
                       router.push('/driver-terms');
                     } else if (link === 'Privacy Policy') {
                       router.push('/privacy-policy');
+                    } else if (link === 'Delete Account') {
+                      router.push('/delete-account');
                     } else if (link === 'Contact') {
                       router.push('/contact');
                     }
