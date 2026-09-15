@@ -28,6 +28,7 @@ import DeleteAccountContent from '@/components/ui/DeleteAccountContent';
 import PageLoader from '@/components/ui/PageLoader';
 import LocationHelpModal from '@/components/ui/LocationHelpModal';
 import { requestGeolocationPermission, loadGrantedLocation } from '@/lib/geolocation';
+import { trackEvent } from '@/lib/trackEvent';
 import {
   CUSTOMER_MAP_HEADER,
   DRIVER_MAP_HEADER_LIVE,
@@ -317,6 +318,11 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
               }
               setIsDriverLive(true);
               localStorage.setItem('is_driver_live', 'true');
+              trackEvent('Go live', {
+                userType: 'driver',
+                userEmail: currentDriver?.email || '',
+                driverEmail: currentDriver?.email || '',
+              });
               showNotification('You are now LIVE on the map!');
               startGPS(currentDriver, jwtToken);
               resolve();
@@ -417,6 +423,11 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
   async function handleSelectDriver(driver) {
     setSelectedDriver(driver);
     setSelectedDriverAddress('Loading address...');
+    trackEvent('Profile viewed', {
+      userType: jwtToken ? 'driver' : 'guest',
+      userEmail: loggedInDriver?.email || '',
+      driverEmail: driver?.email || '',
+    });
     const lat = parseFloat(driver.latitude);
     const lng = parseFloat(driver.longitude);
     if (!isNaN(lat) && !isNaN(lng)) {
@@ -433,6 +444,11 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
     setDriverLocationBannerDismissed(false);
     localStorage.setItem('jwt_token', token);
     localStorage.setItem('logged_in_driver', JSON.stringify(driver));
+    trackEvent('Logged in', {
+      userType: 'driver',
+      userEmail: driver?.email || '',
+      driverEmail: driver?.email || '',
+    });
     handleToggleLive(true, driver)
       .then(() => showNotification('Login successful!'))
       .catch(() => showNotification('Login successful! Allow location to go live.', false));
@@ -442,6 +458,11 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
     setGlobalLoading(true);
     setGlobalLoadingMessage('Logging out...');
     try {
+      trackEvent('End session', {
+        userType: 'driver',
+        userEmail: loggedInDriver?.email || '',
+        driverEmail: loggedInDriver?.email || '',
+      });
       stopGPS();
       if (socketRef.current && loggedInDriver?.id) {
         socketRef.current.emit('go_offline', { driverId: loggedInDriver.id });
@@ -461,8 +482,13 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
     }
   }
 
-  function makePhoneCall(number) {
+  function makePhoneCall(number, driver = null) {
     if (!number || number === 'N/A') { showNotification('No phone number available.', true); return; }
+    trackEvent('Call button', {
+      userType: jwtToken ? 'driver' : 'guest',
+      userEmail: loggedInDriver?.email || '',
+      driverEmail: driver?.email || selectedDriver?.email || '',
+    });
     navigator.clipboard.writeText(number).catch(() => {});
     window.open(`tel:${number}`, '_self');
     showNotification('Opening dialer & copied number to clipboard.');
@@ -533,7 +559,14 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
           <div className="flex items-center gap-2.5 sm:gap-4 md:gap-6 shrink-0">
             {jwtToken ? (
               <>
-                <button onClick={() => setShowProfile(true)} className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-white/50 bg-white/10 flex items-center justify-center text-white hover:bg-white/30 transition-all cursor-pointer shadow-sm">
+                <button onClick={() => {
+                  trackEvent('Profile viewed', {
+                    userType: 'driver',
+                    userEmail: loggedInDriver?.email || '',
+                    driverEmail: loggedInDriver?.email || '',
+                  });
+                  setShowProfile(true);
+                }} className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-white/50 bg-white/10 flex items-center justify-center text-white hover:bg-white/30 transition-all cursor-pointer shadow-sm">
                   {profileUrl ? <img src={profileUrl} alt="profile" className="w-full h-full object-cover rounded-full" /> : "👤"}
                 </button>
                 <button
@@ -544,7 +577,7 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
                 </button>
               </>
             ) : (
-              <button onClick={() => setShowLogin(true)} className="border border-white/40 text-white hover:bg-white/20 transition-all cursor-pointer shadow-sm font-medium bg-white/10 px-3 py-1.5 rounded-md text-xs sm:px-6 sm:py-2 sm:rounded-[6px] sm:text-[15px] whitespace-nowrap">
+              <button onClick={() => { trackEvent('Login clicked', { userType: 'guest' }); setShowLogin(true); }} className="border border-white/40 text-white hover:bg-white/20 transition-all cursor-pointer shadow-sm font-medium bg-white/10 px-3 py-1.5 rounded-md text-xs sm:px-6 sm:py-2 sm:rounded-[6px] sm:text-[15px] whitespace-nowrap">
                 Driver Login
               </button>
             )}
@@ -656,7 +689,7 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
                             <>
                               <div className="h-[0.5px] bg-gray-200 w-full"></div>
                               <div className="px-2.5 py-1.5 flex flex-col gap-1">
-                                <button onClick={(e) => { e.stopPropagation(); makePhoneCall(driver.mobileNumber || driver.phoneNumber); }} className="flex items-center gap-1.5 cursor-pointer hover:bg-gray-50 p-0.5 -ml-0.5 rounded w-full text-left">
+                                <button onClick={(e) => { e.stopPropagation(); makePhoneCall(driver.mobileNumber || driver.phoneNumber, driver); }} className="flex items-center gap-1.5 cursor-pointer hover:bg-gray-50 p-0.5 -ml-0.5 rounded w-full text-left">
                                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-500 shrink-0"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
                                   <span className="text-[11px] font-bold text-gray-800">{driver.mobileNumber || driver.phoneNumber || 'N/A'}</span>
                                 </button>
@@ -676,7 +709,7 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
                                     </div>
                                   ))}
                                 </div>
-                                <button onClick={(e) => { e.stopPropagation(); makePhoneCall(driver.mobileNumber || driver.phoneNumber); }} className="w-full bg-[#2E7D32] hover:bg-[#256629] text-white rounded-md h-[34px] flex items-center justify-center gap-1.5 cursor-pointer">
+                                <button onClick={(e) => { e.stopPropagation(); makePhoneCall(driver.mobileNumber || driver.phoneNumber, driver); }} className="w-full bg-[#2E7D32] hover:bg-[#256629] text-white rounded-md h-[34px] flex items-center justify-center gap-1.5 cursor-pointer">
                                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
                                   <span className="text-[12px] font-bold">Call a Driver</span>
                                 </button>
@@ -816,10 +849,10 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
       <footer className="flex-shrink-0 w-full flex flex-col sm:flex-row justify-center items-stretch sm:items-center gap-2.5 sm:gap-6 bg-[#0b51c1] px-4 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-2.5">
         {!jwtToken ? (
           <>
-            <button onClick={() => setShowSignup(true)} className="w-full sm:w-auto text-white font-bold transition-all shadow-md hover:shadow-lg cursor-pointer transform hover:-translate-y-0.5 bg-[#144cb8] py-2.5 px-6 rounded-lg text-sm sm:py-3 sm:px-9 sm:rounded-[8px] sm:text-base">
+            <button onClick={() => { trackEvent('Become driver', { userType: 'guest' }); setShowSignup(true); }} className="w-full sm:w-auto text-white font-bold transition-all shadow-md hover:shadow-lg cursor-pointer transform hover:-translate-y-0.5 bg-[#144cb8] py-2.5 px-6 rounded-lg text-sm sm:py-3 sm:px-9 sm:rounded-[8px] sm:text-base">
               Become a Driver
             </button>
-            <button onClick={() => setShowLogin(true)} className="w-full sm:w-auto text-white font-bold transition-all shadow-md hover:shadow-lg cursor-pointer transform hover:-translate-y-0.5 bg-[#1bb54f] py-2.5 px-6 rounded-lg text-sm sm:py-3 sm:px-11 sm:rounded-[8px] sm:text-base">
+            <button onClick={() => { trackEvent('Login clicked', { userType: 'guest' }); setShowLogin(true); }} className="w-full sm:w-auto text-white font-bold transition-all shadow-md hover:shadow-lg cursor-pointer transform hover:-translate-y-0.5 bg-[#1bb54f] py-2.5 px-6 rounded-lg text-sm sm:py-3 sm:px-11 sm:rounded-[8px] sm:text-base">
               Go Live
             </button>
           </>
@@ -850,7 +883,11 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
         <LoginModal
           onClose={() => setShowLogin(false)}
           onLoginSuccess={handleLoginSuccess}
-          onSignUpPressed={() => { setShowLogin(false); setShowSignup(true); }}
+          onSignUpPressed={() => {
+            trackEvent('Become driver', { userType: 'guest' });
+            setShowLogin(false);
+            setShowSignup(true);
+          }}
           onPendingApproval={(email) => { setShowLogin(false); showNotification(`Account pending approval.`, false); }}
           onForgotPassword={() => setShowForgotPassword(true)}
           onLoadingChange={(loading, message) => {
@@ -937,7 +974,11 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
             {!jwtToken ? (
               <div className="px-4 pb-5 pt-2">
                 <button 
-                  onClick={() => { setShowHamburger(false); setShowLogin(true); }} 
+                  onClick={() => {
+                    trackEvent('Login clicked', { userType: 'guest' });
+                    setShowHamburger(false);
+                    setShowLogin(true);
+                  }} 
                   className="w-full bg-[#22c55e] hover:bg-[#16a34a] text-white py-3.5 rounded-[8px] font-bold text-[15px] shadow-sm transition-colors cursor-pointer"
                 >
                   Driver Login

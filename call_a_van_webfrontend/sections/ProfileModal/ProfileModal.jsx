@@ -5,6 +5,7 @@
 import { useState, useEffect } from 'react';
 import { updateDriverProfile, logoutDriver, getCorrectImageUrl } from '@/lib/api';
 import { showNotification } from '@/components/ui/ToastManager';
+import { trackEvent } from '@/lib/trackEvent';
 
 const VEHICLE_TYPES = ['Luton Van', 'Transit Van', 'Sprinter', 'Pickup Truck', 'Box Truck', 'Other'];
 const SERVICES_LIST = ['House Removals', 'Office Removals', 'Single Item', 'IKEA Pickup', 'eBay Delivery', 'Airport Runs', 'Man & Van', 'Furniture Assembly'];
@@ -87,6 +88,11 @@ export default function ProfileModal({ driver, token, onClose, onLogout, onProfi
         vanImageName: vanName,
       });
       showNotification('Profile updated successfully!');
+      trackEvent('Edit profile', {
+        userType: 'driver',
+        userEmail: driver?.email || form?.email || '',
+        driverEmail: driver?.email || form?.email || '',
+      });
       onProfileUpdated(data.driver);
       setProfilePreview(null);
       setProfileBase64(null);

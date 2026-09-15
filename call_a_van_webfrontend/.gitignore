@@ -33,6 +33,9 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# local web analytics store (Next.js only)
+/data/web-analytics.json
+
 # vercel
 .vercel
 

@@ -7,6 +7,7 @@ import {
   updateDriverApproval,
   updateDriverLiveStatus,
   fetchAdminInsights,
+  fetchWebAnalytics,
   driverHasLocation,
   getCorrectImageUrl,
 } from '@/lib/adminApi';
@@ -34,6 +35,7 @@ function DashboardInner() {
   const [adminEmail, setAdminEmail] = useState('');
   const [drivers, setDrivers] = useState([]);
   const [insights, setInsights] = useState(null);
+  const [webAnalytics, setWebAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [insightsLoading, setInsightsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -90,8 +92,16 @@ function DashboardInner() {
   const loadInsights = async (authToken) => {
     setInsightsLoading(true);
     try {
-      const data = await fetchAdminInsights(authToken || token);
-      setInsights(data);
+      const [fleet, web] = await Promise.all([
+        fetchAdminInsights(authToken || token),
+        fetchWebAnalytics(authToken || token).catch(() => ({
+          counts: {},
+          events: [],
+          totalEvents: 0,
+        })),
+      ]);
+      setInsights(fleet);
+      setWebAnalytics(web);
     } catch (err) {
       showToast('error', err.message || 'Failed to load insights.');
     } finally {
@@ -183,7 +193,7 @@ function DashboardInner() {
       toastMessage={toastMessage}
     >
       {activeTab === 'insights' ? (
-        <InsightsPanel insights={insights} loading={insightsLoading} />
+        <InsightsPanel insights={insights} webAnalytics={webAnalytics} loading={insightsLoading} />
       ) : (
         <div className="space-y-5">
           <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">

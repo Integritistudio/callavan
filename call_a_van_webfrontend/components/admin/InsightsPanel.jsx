@@ -9,7 +9,33 @@ import {
   PieChart,
   Layers,
   Gauge,
+  Activity,
+  MousePointerClick,
 } from 'lucide-react';
+
+const WEB_EVENT_ORDER = [
+  'Become driver',
+  'Login clicked',
+  'Go live',
+  'End session',
+  'Profile viewed',
+  'Call button',
+  'Logged in',
+  'Signed up',
+  'Edit profile',
+];
+
+function formatWhen(iso) {
+  if (!iso) return '—';
+  try {
+    return new Date(iso).toLocaleString(undefined, {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
+  } catch {
+    return iso;
+  }
+}
 
 function pctBar(percent, colorClass) {
   const width = Math.max(0, Math.min(100, percent || 0));
@@ -83,7 +109,7 @@ function AvailabilityBars({ live, offline, approved }) {
   );
 }
 
-export default function InsightsPanel({ insights, loading }) {
+export default function InsightsPanel({ insights, webAnalytics, loading }) {
   if (loading || !insights) {
     return (
       <div className="py-16 text-center text-slate-400 text-sm font-medium">
@@ -104,6 +130,8 @@ export default function InsightsPanel({ insights, loading }) {
   } = insights;
 
   const maxService = Math.max(...(topServices?.map((s) => s.count) || [1]), 1);
+  const webCounts = webAnalytics?.counts || {};
+  const webEvents = webAnalytics?.events || [];
 
   const summaryCards = [
     { label: 'Total drivers', value: totalDrivers, icon: Users, tone: 'bg-blue-50 text-[#0b51c1]' },
@@ -121,6 +149,70 @@ export default function InsightsPanel({ insights, loading }) {
 
   return (
     <div className="space-y-6">
+      {/* Web analytics (Next.js only) */}
+      <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-3">
+          <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+            <MousePointerClick className="h-4 w-4 text-[#0b51c1]" />
+            Website activity
+          </h3>
+          <span className="text-[11px] font-semibold text-slate-400">
+            Next.js web only · {webAnalytics?.totalEvents ?? 0} events
+          </span>
+        </div>
+
+        <div className="p-5 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
+          {WEB_EVENT_ORDER.map((name) => (
+            <div
+              key={name}
+              className="rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-3"
+            >
+              <p className="text-2xl font-extrabold text-slate-900">{webCounts[name] || 0}</p>
+              <p className="text-[11px] font-semibold text-slate-500 mt-0.5">{name}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="border-t border-slate-100">
+          <div className="px-5 py-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+            <Activity className="h-3.5 w-3.5" />
+            Recent events
+          </div>
+          <div className="overflow-x-auto">
+            {!webEvents.length ? (
+              <p className="px-5 pb-5 text-sm text-slate-400">
+                No website events yet. Counts will appear as users interact with the Next.js map site.
+              </p>
+            ) : (
+              <table className="w-full text-left min-w-[860px]">
+                <thead>
+                  <tr className="bg-slate-50 border-y border-slate-100 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    <th className="py-2.5 px-5">When</th>
+                    <th className="py-2.5 px-5">Event</th>
+                    <th className="py-2.5 px-5">User type</th>
+                    <th className="py-2.5 px-5">User email</th>
+                    <th className="py-2.5 px-5">Driver email</th>
+                    <th className="py-2.5 px-5">Device</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-sm">
+                  {webEvents.map((row) => (
+                    <tr key={row.id} className="hover:bg-slate-50/80">
+                      <td className="py-2.5 px-5 text-slate-600 whitespace-nowrap">{formatWhen(row.when)}</td>
+                      <td className="py-2.5 px-5 font-semibold text-slate-800">{row.event}</td>
+                      <td className="py-2.5 px-5 text-slate-600 capitalize">{row.userType || 'guest'}</td>
+                      <td className="py-2.5 px-5 text-slate-600">{row.userEmail || '—'}</td>
+                      <td className="py-2.5 px-5 text-slate-600">{row.driverEmail || '—'}</td>
+                      <td className="py-2.5 px-5 text-slate-500">{row.device || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      </section>
+
       <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {summaryCards.map((card) => {
           const Icon = card.icon;

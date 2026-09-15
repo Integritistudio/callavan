@@ -97,6 +97,19 @@ export async function fetchAdminInsights(token) {
   return data.insights;
 }
 
+export async function fetchWebAnalytics(token, limit = 150) {
+  const res = await fetch(`/api/analytics?limit=${limit}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch web analytics');
+  return data;
+}
+
 export function hasValidCoords(lat, lng) {
   const la = parseFloat(lat);
   const ln = parseFloat(lng);

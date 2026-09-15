@@ -5,6 +5,7 @@
 import { useState } from 'react';
 import { signupDriver } from '@/lib/api';
 import { showNotification } from '@/components/ui/ToastManager';
+import { trackEvent } from '@/lib/trackEvent';
 
 const VEHICLE_TYPES = ['Luton Van', 'Transit Van', 'Sprinter', 'Pickup Truck', 'Box Truck', 'Other'];
 const SERVICES_LIST = ['House Removals', 'Single Item Transport', 'Furniture Collection / Delivery', 'Storage Moves', 'Small Moves / Student Moves', 'Waste / Disposal Runs'];
@@ -103,6 +104,11 @@ export default function SignupModal({ onClose, onLoadingChange }) {
         profileImageName,
         vanImageBase64,
         vanImageName,
+      });
+      trackEvent('Signed up', {
+        userType: 'driver',
+        userEmail: form.email || '',
+        driverEmail: form.email || '',
       });
       showNotification('Registration submitted! Awaiting admin approval.');
       onClose();
