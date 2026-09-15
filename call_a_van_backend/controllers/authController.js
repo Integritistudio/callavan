@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const bcrypt = require('bcryptjs');
+const { verifyPassword, hashPasswordBcrypt } = require('../utils/passwordUtils');
 const jwt = require('jsonwebtoken');
 const Driver = require('../models/driverModel');
 const cloudinary = require('cloudinary').v2;
@@ -80,9 +80,8 @@ exports.signup = async (req, res) => {
       });
     }
 
-    // 3. Encrypt the password using bcrypt salt hashing
-    const salt = await bcrypt.genSalt(10);
-    const passwordHash = await bcrypt.hash(password, salt);
+    // 3. Encrypt the password using bcrypt only (new passwords never use scrypt)
+    const passwordHash = await hashPasswordBcrypt(password);
 
     // 4. Process and decode files if sent by Flutter frontend (now via Cloudinary)
     const profileImageUrl = await uploadToCloudinary(profileImageBase64, profileImageName);
@@ -141,13 +140,25 @@ exports.login = async (req, res) => {
       });
     }
 
-    // 3. Verify the hashed password
-    const isMatch = await bcrypt.compare(password, driver.password_hash);
+    // 3. Verify password (bcrypt OR legacy Deno scrypt); upgrade scrypt → bcrypt on success
+    const { ok: isMatch, needsRehash } = await verifyPassword(password, driver.password_hash);
     if (!isMatch) {
       return res.status(401).json({
         status: 'error',
         message: 'Invalid email or password.',
       });
+    }
+
+    if (needsRehash) {
+      try {
+        const newHash = await hashPasswordBcrypt(password);
+        await require('../config/db').query(
+          'UPDATE drivers SET password_hash = $1 WHERE id = $2',
+          [newHash, driver.id]
+        );
+      } catch (rehashErr) {
+        console.error('Failed to rehash legacy scrypt password:', rehashErr.message);
+      }
     }
 
     // 4. Check if the driver is approved by admin

@@ -1,4 +1,4 @@
-const bcrypt = require('bcryptjs');
+const { verifyPassword, hashPasswordBcrypt } = require('../utils/passwordUtils');
 const Driver = require('../models/driverModel');
 const { sendResetEmail } = require('../utils/emailService');
 
@@ -101,9 +101,8 @@ exports.resetPassword = async (req, res) => {
       });
     }
 
-    // Hash the new password
-    const salt = await bcrypt.genSalt(10);
-    const newPasswordHash = await bcrypt.hash(newPassword, salt);
+    // Hash the new password with bcrypt only
+    const newPasswordHash = await hashPasswordBcrypt(newPassword);
 
     // Update the database and instantly clear the OTP
     await Driver.updatePasswordAndClearOtp(email, newPasswordHash);
@@ -145,15 +144,14 @@ exports.changePassword = async (req, res) => {
     }
 
     const passwordHash = result.rows[0].password_hash;
-    const isMatch = await bcrypt.compare(currentPassword, passwordHash);
+    const { ok: isMatch } = await verifyPassword(currentPassword, passwordHash);
 
     if (!isMatch) {
       return res.status(401).json({ status: 'error', message: 'Incorrect current password.' });
     }
 
-    // Hash the new password
-    const salt = await bcrypt.genSalt(10);
-    const newPasswordHash = await bcrypt.hash(newPassword, salt);
+    // Hash the new password with bcrypt only
+    const newPasswordHash = await hashPasswordBcrypt(newPassword);
 
     // Update the database
     await db.query('UPDATE drivers SET password_hash = $1 WHERE id = $2', [newPasswordHash, driverId]);
