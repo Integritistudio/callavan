@@ -13,6 +13,7 @@ import {
 } from '@/lib/adminApi';
 import AdminShell from '@/components/admin/AdminShell';
 import InsightsPanel from '@/components/admin/InsightsPanel';
+import AnalyticsPanel from '@/components/admin/AnalyticsPanel';
 import {
   Users,
   UserCheck,
@@ -26,10 +27,16 @@ import {
   Radio,
 } from 'lucide-react';
 
+function tabFromSearchParams(searchParams) {
+  const tab = searchParams.get('tab');
+  if (tab === 'insights' || tab === 'analytics') return tab;
+  return 'drivers';
+}
+
 function DashboardInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const initialTab = searchParams.get('tab') === 'insights' ? 'insights' : 'drivers';
+  const initialTab = tabFromSearchParams(searchParams);
 
   const [token, setToken] = useState(null);
   const [adminEmail, setAdminEmail] = useState('');
@@ -38,6 +45,7 @@ function DashboardInner() {
   const [webAnalytics, setWebAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [insightsLoading, setInsightsLoading] = useState(false);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState(initialTab);
   const [searchQuery, setSearchQuery] = useState('');
@@ -58,13 +66,13 @@ function DashboardInner() {
   }, [router]);
 
   useEffect(() => {
-    setActiveTab(searchParams.get('tab') === 'insights' ? 'insights' : 'drivers');
+    setActiveTab(tabFromSearchParams(searchParams));
   }, [searchParams]);
 
   useEffect(() => {
-    if (activeTab === 'insights' && token) {
-      loadInsights(token);
-    }
+    if (!token) return;
+    if (activeTab === 'insights') loadInsights(token);
+    if (activeTab === 'analytics') loadAnalytics(token);
   }, [activeTab, token]);
 
   const showToast = (type, text) => {
@@ -92,20 +100,25 @@ function DashboardInner() {
   const loadInsights = async (authToken) => {
     setInsightsLoading(true);
     try {
-      const [fleet, web] = await Promise.all([
-        fetchAdminInsights(authToken || token),
-        fetchWebAnalytics(authToken || token).catch(() => ({
-          counts: {},
-          events: [],
-          totalEvents: 0,
-        })),
-      ]);
+      const fleet = await fetchAdminInsights(authToken || token);
       setInsights(fleet);
-      setWebAnalytics(web);
     } catch (err) {
       showToast('error', err.message || 'Failed to load insights.');
     } finally {
       setInsightsLoading(false);
+    }
+  };
+
+  const loadAnalytics = async (authToken) => {
+    setAnalyticsLoading(true);
+    try {
+      const web = await fetchWebAnalytics(authToken || token);
+      setWebAnalytics(web);
+    } catch (err) {
+      showToast('error', err.message || 'Failed to load analytics.');
+      setWebAnalytics({ counts: {}, events: [], totalEvents: 0 });
+    } finally {
+      setAnalyticsLoading(false);
     }
   };
 
@@ -193,7 +206,13 @@ function DashboardInner() {
       toastMessage={toastMessage}
     >
       {activeTab === 'insights' ? (
-        <InsightsPanel insights={insights} webAnalytics={webAnalytics} loading={insightsLoading} />
+        <InsightsPanel insights={insights} loading={insightsLoading} />
+      ) : activeTab === 'analytics' ? (
+        <AnalyticsPanel
+          webAnalytics={webAnalytics}
+          loading={analyticsLoading}
+          onRefresh={() => loadAnalytics(token)}
+        />
       ) : (
         <div className="space-y-5">
           <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">

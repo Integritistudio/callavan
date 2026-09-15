@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import {
   Users,
   BarChart3,
+  Activity,
   LogOut,
   Lock,
   X,
@@ -19,7 +20,14 @@ import { adminChangePassword } from '@/lib/adminApi';
 const NAV = [
   { id: 'drivers', label: 'Drivers', href: '/admin', icon: Users },
   { id: 'insights', label: 'Insights', href: '/admin?tab=insights', icon: BarChart3 },
+  { id: 'analytics', label: 'Analytics', href: '/admin?tab=analytics', icon: Activity },
 ];
+
+function tabFromHref(id) {
+  if (id === 'insights') return '/admin?tab=insights';
+  if (id === 'analytics') return '/admin?tab=analytics';
+  return '/admin';
+}
 
 export default function AdminShell({
   children,
@@ -50,11 +58,7 @@ export default function AdminShell({
     setSidebarOpen(false);
     if (pathname === '/admin' && onTabChange) {
       onTabChange(item.id);
-      if (item.id === 'insights') {
-        router.replace('/admin?tab=insights');
-      } else {
-        router.replace('/admin');
-      }
+      router.replace(tabFromHref(item.id));
       return;
     }
     router.push(item.href);
@@ -147,7 +151,7 @@ export default function AdminShell({
               item.id === 'drivers'
                 ? pathname?.startsWith('/admin/driver') ||
                   (pathname === '/admin' && activeTab === 'drivers')
-                : pathname === '/admin' && activeTab === 'insights';
+                : pathname === '/admin' && activeTab === item.id;
             return (
               <button
                 key={item.id}
@@ -208,7 +212,9 @@ export default function AdminShell({
                 ? 'Driver details'
                 : activeTab === 'insights'
                   ? 'Fleet insights'
-                  : 'Driver management'}
+                  : activeTab === 'analytics'
+                    ? 'Website analytics'
+                    : 'Driver management'}
             </h1>
             <p className="text-xs text-slate-500 hidden sm:block">
               Call-A-Van operations console
