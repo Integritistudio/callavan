@@ -311,3 +311,180 @@ exports.updateApprovalStatus = async (req, res) => {
     });
   }
 };
+
+const broadcastLiveChange = (io, broadcast) => {
+  if (!io || !broadcast) return;
+  io.emit('driver_status_changed', {
+    driverId: broadcast.driverId,
+    isLive: broadcast.isLive,
+  });
+  if (broadcast.latitude != null && broadcast.longitude != null) {
+    io.emit('driver_location_changed', {
+      driverId: broadcast.driverId,
+      latitude: broadcast.latitude,
+      longitude: broadcast.longitude,
+      isLive: broadcast.isLive,
+    });
+  }
+};
+
+// Toggle driver live / offline from admin panel
+exports.updateLiveStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { isLive } = req.body;
+
+    if (isLive === undefined) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'isLive status is required.',
+      });
+    }
+
+    const result = await Admin.setDriverLiveStatus(id, Boolean(isLive));
+    broadcastLiveChange(req.app.get('io'), result.broadcast);
+
+    return res.status(200).json({
+      status: 'success',
+      message: isLive
+        ? 'Driver is now live on the public map.'
+        : 'Driver is now offline on the public map.',
+      driver: result.driver,
+    });
+  } catch (error) {
+    console.error('Admin Set Live Status Error:', error);
+    return res.status(error.statusCode || 500).json({
+      status: 'error',
+      message: error.message || 'Internal server error updating live status.',
+    });
+  }
+};
+
+// Set / update offline location pin
+exports.updateOfflineLocation = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { offlineLatitude, offlineLongitude } = req.body;
+
+    const result = await Admin.updateOfflineLocation(id, offlineLatitude, offlineLongitude);
+    broadcastLiveChange(req.app.get('io'), result.broadcast);
+
+    return res.status(200).json({
+      status: 'success',
+      message: 'Offline location updated successfully.',
+      driver: result.driver,
+    });
+  } catch (error) {
+    console.error('Admin Update Offline Location Error:', error);
+    return res.status(error.statusCode || 500).json({
+      status: 'error',
+      message: error.message || 'Internal server error updating offline location.',
+    });
+  }
+};
+
+// Edit driver profile details (admin)
+exports.updateDriverDetails = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      fullName,
+      mobileNumber,
+      email,
+      companyName,
+      baseArea,
+      vehicleType,
+      shortBio,
+      servicesOffered,
+      profileImageBase64,
+      profileImageName,
+      vanImageBase64,
+      vanImageName,
+    } = req.body;
+
+    let profileImageUrl;
+    let vanImageUrl;
+
+    const cloudinary = require('cloudinary').v2;
+    cloudinary.config({
+      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+      api_key: process.env.CLOUDINARY_API_KEY,
+      api_secret: process.env.CLOUDINARY_API_SECRET,
+    });
+
+    if (profileImageBase64 && profileImageName) {
+      try {
+        const dataUri = `data:image/jpeg;base64,${profileImageBase64}`;
+        const uploaded = await cloudinary.uploader.upload(dataUri, {
+          folder: 'call_a_van_uploads',
+          public_id: `admin_profile_${Date.now()}`,
+        });
+        profileImageUrl = uploaded.secure_url;
+      } catch (e) {
+        console.error('Admin profile image upload failed:', e);
+      }
+    }
+
+    if (vanImageBase64 && vanImageName) {
+      try {
+        const dataUri = `data:image/jpeg;base64,${vanImageBase64}`;
+        const uploaded = await cloudinary.uploader.upload(dataUri, {
+          folder: 'call_a_van_uploads',
+          public_id: `admin_van_${Date.now()}`,
+        });
+        vanImageUrl = uploaded.secure_url;
+      } catch (e) {
+        console.error('Admin van image upload failed:', e);
+      }
+    }
+
+    const driver = await Admin.updateDriverDetails(id, {
+      fullName,
+      mobileNumber,
+      email,
+      companyName,
+      baseArea,
+      vehicleType,
+      shortBio,
+      servicesOffered,
+      profileImageUrl,
+      vanImageUrl,
+    });
+
+    return res.status(200).json({
+      status: 'success',
+      message: 'Driver details updated successfully.',
+      driver,
+    });
+  } catch (error) {
+    console.error('Admin Update Driver Details Error:', error);
+    // Unique email conflict
+    if (error.code === '23505') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'That email is already used by another driver.',
+      });
+    }
+    return res.status(error.statusCode || 500).json({
+      status: 'error',
+      message: error.message || 'Internal server error updating driver details.',
+    });
+  }
+};
+
+// Insights / analytics for admin dashboard
+exports.getInsights = async (req, res) => {
+  try {
+    const insights = await Admin.getInsights();
+    return res.status(200).json({
+      status: 'success',
+      insights,
+    });
+  } catch (error) {
+    console.error('Admin Get Insights Error:', error);
+    return res.status(500).json({
+      status: 'error',
+      message: 'Internal server error loading insights.',
+    });
+  }
+};

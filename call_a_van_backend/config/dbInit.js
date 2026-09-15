@@ -60,10 +60,12 @@ const initializeDatabase = async () => {
       );
     `);
 
-    // Dynamic schema expansion: ensure is_logged_in column exists on startup
+    // Dynamic schema expansion: ensure is_logged_in + offline pin columns exist on startup
     await db.query(`
       ALTER TABLE driver_locations 
-      ADD COLUMN IF NOT EXISTS is_logged_in BOOLEAN DEFAULT false;
+      ADD COLUMN IF NOT EXISTS is_logged_in BOOLEAN DEFAULT false,
+      ADD COLUMN IF NOT EXISTS offline_latitude DECIMAL(9,6),
+      ADD COLUMN IF NOT EXISTS offline_longitude DECIMAL(9,6);
     `);
 
     // Create admins table for secure administrative access

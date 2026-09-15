@@ -1,101 +1,129 @@
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
 
-export async function adminLogin(email, password) {
-  const res = await fetch(`${BACKEND_URL}/api/admin/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
+async function adminFetch(path, { token, method = 'GET', body } = {}) {
+  const res = await fetch(`${BACKEND_URL}${path}`, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || 'Login failed');
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Request failed');
   return data;
+}
+
+export async function adminLogin(email, password) {
+  return adminFetch('/api/admin/login', {
+    method: 'POST',
+    body: { email, password },
+  });
 }
 
 export async function adminForgotPassword(email) {
-  const res = await fetch(`${BACKEND_URL}/api/admin/forgot-password`, {
+  return adminFetch('/api/admin/forgot-password', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email }),
+    body: { email },
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || 'Failed to send OTP code');
-  return data;
 }
 
 export async function adminVerifyOtp(email, otp) {
-  const res = await fetch(`${BACKEND_URL}/api/admin/verify-reset-token`, {
+  return adminFetch('/api/admin/verify-reset-token', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, otp }),
+    body: { email, otp },
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || 'Invalid or expired OTP');
-  return data;
 }
 
 export async function adminResetPassword(email, otp, newPassword) {
-  const res = await fetch(`${BACKEND_URL}/api/admin/reset-password`, {
+  return adminFetch('/api/admin/reset-password', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, otp, newPassword }),
+    body: { email, otp, newPassword },
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || 'Failed to reset password');
-  return data;
 }
 
 export async function adminChangePassword(token, currentPassword, newPassword) {
-  const res = await fetch(`${BACKEND_URL}/api/admin/change-password`, {
+  return adminFetch('/api/admin/change-password', {
+    token,
     method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ currentPassword, newPassword }),
+    body: { currentPassword, newPassword },
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || 'Failed to update password');
-  return data;
 }
 
 export async function fetchDrivers(token) {
-  const res = await fetch(`${BACKEND_URL}/api/admin/drivers`, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || 'Failed to fetch drivers list');
+  const data = await adminFetch('/api/admin/drivers', { token });
   return data.drivers || [];
 }
 
 export async function fetchDriverDetails(token, id) {
-  const res = await fetch(`${BACKEND_URL}/api/admin/drivers/${id}`, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || 'Failed to fetch driver details');
+  const data = await adminFetch(`/api/admin/drivers/${id}`, { token });
   return data.driver;
 }
 
 export async function updateDriverApproval(token, id, isApproved) {
-  const res = await fetch(`${BACKEND_URL}/api/admin/drivers/${id}/approval`, {
+  return adminFetch(`/api/admin/drivers/${id}/approval`, {
+    token,
     method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ isApproved }),
+    body: { isApproved },
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || 'Failed to update approval status');
-  return data;
+}
+
+export async function updateDriverLiveStatus(token, id, isLive) {
+  return adminFetch(`/api/admin/drivers/${id}/live`, {
+    token,
+    method: 'PUT',
+    body: { isLive },
+  });
+}
+
+export async function updateDriverOfflineLocation(token, id, offlineLatitude, offlineLongitude) {
+  return adminFetch(`/api/admin/drivers/${id}/offline-location`, {
+    token,
+    method: 'PUT',
+    body: { offlineLatitude, offlineLongitude },
+  });
+}
+
+export async function updateDriverDetails(token, id, payload) {
+  return adminFetch(`/api/admin/drivers/${id}`, {
+    token,
+    method: 'PUT',
+    body: payload,
+  });
+}
+
+export async function fetchAdminInsights(token) {
+  const data = await adminFetch('/api/admin/insights', { token });
+  return data.insights;
+}
+
+export function hasValidCoords(lat, lng) {
+  const la = parseFloat(lat);
+  const ln = parseFloat(lng);
+  if (Number.isNaN(la) || Number.isNaN(ln)) return false;
+  if (la === 0 && ln === 0) return false;
+  return la >= -90 && la <= 90 && ln >= -180 && ln <= 180;
+}
+
+export function driverHasLocation(driver) {
+  if (!driver) return false;
+  return (
+    hasValidCoords(driver.latitude, driver.longitude) ||
+    hasValidCoords(driver.offlineLatitude, driver.offlineLongitude)
+  );
+}
+
+export function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result || '');
+      const base64 = result.includes(',') ? result.split(',')[1] : result;
+      resolve(base64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 export function getCorrectImageUrl(rawUrl) {

@@ -14,7 +14,11 @@ router.put('/change-password', adminMiddleware.protect, adminController.changePa
 
 // Driver management routes
 router.get('/drivers', adminMiddleware.protect, adminController.getAllDrivers);
+router.get('/insights', adminMiddleware.protect, adminController.getInsights);
 router.get('/drivers/:id', adminMiddleware.protect, adminController.getDriverDetails);
 router.put('/drivers/:id/approval', adminMiddleware.protect, adminController.updateApprovalStatus);
+router.put('/drivers/:id/live', adminMiddleware.protect, adminController.updateLiveStatus);
+router.put('/drivers/:id/offline-location', adminMiddleware.protect, adminController.updateOfflineLocation);
+router.put('/drivers/:id', adminMiddleware.protect, adminController.updateDriverDetails);
 
 module.exports = router;

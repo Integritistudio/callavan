@@ -200,11 +200,18 @@ exports.getLiveDrivers = async (req, res) => {
   try {
     const db = require('../config/db'); // Dynamically require database configuration securely
 
+    // When offline, prefer admin-set offline pin; otherwise fall back to last GPS
     const query = `
       SELECT 
         d.id AS id,
-        dl.latitude, 
-        dl.longitude, 
+        CASE
+          WHEN COALESCE(dl.is_live, false) = true THEN dl.latitude
+          ELSE COALESCE(dl.offline_latitude, dl.latitude)
+        END AS latitude,
+        CASE
+          WHEN COALESCE(dl.is_live, false) = true THEN dl.longitude
+          ELSE COALESCE(dl.offline_longitude, dl.longitude)
+        END AS longitude,
         COALESCE(dl.is_live, false) AS "isLive",
         d.full_name AS "fullName", 
         d.mobile_number AS "phoneNumber", 

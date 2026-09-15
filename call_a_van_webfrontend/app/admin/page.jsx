@@ -1,60 +1,74 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { fetchDrivers, updateDriverApproval, adminChangePassword } from '@/lib/adminApi';
-import { 
-  Users, 
-  UserCheck, 
-  UserX, 
-  Clock, 
-  Search, 
-  LogOut, 
-  Lock, 
-  ShieldCheck, 
-  AlertCircle, 
-  Check, 
-  X, 
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import {
+  fetchDrivers,
+  updateDriverApproval,
+  updateDriverLiveStatus,
+  fetchAdminInsights,
+  driverHasLocation,
+  getCorrectImageUrl,
+} from '@/lib/adminApi';
+import AdminShell from '@/components/admin/AdminShell';
+import InsightsPanel from '@/components/admin/InsightsPanel';
+import {
+  Users,
+  UserCheck,
+  UserX,
+  Clock,
+  Search,
+  AlertCircle,
   Loader2,
   RefreshCw,
-  Eye
+  Eye,
+  Radio,
 } from 'lucide-react';
 
-export default function DashboardPage() {
+function DashboardInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get('tab') === 'insights' ? 'insights' : 'drivers';
+
   const [token, setToken] = useState(null);
   const [adminEmail, setAdminEmail] = useState('');
   const [drivers, setDrivers] = useState([]);
+  const [insights, setInsights] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [insightsLoading, setInsightsLoading] = useState(false);
   const [error, setError] = useState('');
-  
-  // Search & Filter
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('ALL'); // ALL, APPROVED, PENDING
-
-  // Password Change Modal
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [passwordLoading, setPasswordLoading] = useState(false);
-  const [passwordError, setPasswordError] = useState('');
-  const [passwordSuccess, setPasswordSuccess] = useState('');
-
-  // Notification Banner
-  const [toastMessage, setToastMessage] = useState(null); // { type: 'success'|'error', text: '' }
+  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [togglingLiveId, setTogglingLiveId] = useState(null);
+  const [toastMessage, setToastMessage] = useState(null);
 
   useEffect(() => {
     const savedToken = localStorage.getItem('admin_token');
     const savedEmail = localStorage.getItem('admin_email');
     if (!savedToken) {
       router.push('/admin/login');
-    } else {
-      setToken(savedToken);
-      setAdminEmail(savedEmail || 'Administrator');
-      loadDrivers(savedToken);
+      return;
     }
+    setToken(savedToken);
+    setAdminEmail(savedEmail || 'Administrator');
+    loadDrivers(savedToken);
   }, [router]);
+
+  useEffect(() => {
+    setActiveTab(searchParams.get('tab') === 'insights' ? 'insights' : 'drivers');
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (activeTab === 'insights' && token) {
+      loadInsights(token);
+    }
+  }, [activeTab, token]);
+
+  const showToast = (type, text) => {
+    setToastMessage({ type, text });
+    setTimeout(() => setToastMessage(null), 4000);
+  };
 
   const loadDrivers = async (authToken) => {
     setLoading(true);
@@ -64,548 +78,357 @@ export default function DashboardPage() {
       setDrivers(data);
     } catch (err) {
       setError(err.message || 'Failed to load drivers.');
-      if (err.message.includes('auth') || err.message.includes('token') || err.message.includes('denied')) {
-        handleLogout();
+      if (/auth|token|denied/i.test(err.message || '')) {
+        localStorage.removeItem('admin_token');
+        router.push('/admin/login');
       }
     } finally {
       setLoading(false);
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('admin_token');
-    localStorage.removeItem('admin_email');
-    router.push('/admin/login');
+  const loadInsights = async (authToken) => {
+    setInsightsLoading(true);
+    try {
+      const data = await fetchAdminInsights(authToken || token);
+      setInsights(data);
+    } catch (err) {
+      showToast('error', err.message || 'Failed to load insights.');
+    } finally {
+      setInsightsLoading(false);
+    }
   };
 
   const handleStatusToggle = async (driverId, currentApprovedState) => {
-    setError('');
     const targetApprovedState = !currentApprovedState;
-
     try {
-      // Optimistic UI update
-      setDrivers(prev => prev.map(d => {
-        if (d.id === driverId) {
-          return { ...d, isApproved: targetApprovedState };
-        }
-        return d;
-      }));
-
+      setDrivers((prev) =>
+        prev.map((d) => (d.id === driverId ? { ...d, isApproved: targetApprovedState } : d))
+      );
       const res = await updateDriverApproval(token, driverId, targetApprovedState);
-      
-      showToast('success', res.message || `Driver status updated successfully.`);
-      // Reload from backend to make sure states align perfectly
+      showToast('success', res.message || 'Driver status updated.');
       const freshDrivers = await fetchDrivers(token);
       setDrivers(freshDrivers);
     } catch (err) {
-      // Revert optimistic update on failure
-      setDrivers(prev => prev.map(d => {
-        if (d.id === driverId) {
-          return { ...d, isApproved: currentApprovedState };
-        }
-        return d;
-      }));
+      setDrivers((prev) =>
+        prev.map((d) => (d.id === driverId ? { ...d, isApproved: currentApprovedState } : d))
+      );
       showToast('error', err.message || 'Failed to update approval status.');
     }
   };
 
-  const handlePasswordChange = async (e) => {
-    e.preventDefault();
-    if (!currentPassword || !newPassword || !confirmPassword) {
-      setPasswordError('Please fill in all fields.');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setPasswordError('New passwords do not match.');
+  const handleLiveToggle = async (driver) => {
+    const isApproved = driver.isApproved === true || driver.isApproved === 1;
+    const isOnline = isApproved && (driver.locationLive === true || driver.isLive === true);
+    const nextLive = !isOnline;
+
+    if (nextLive && !driverHasLocation(driver)) {
+      showToast('error', 'Set coordinates (offline location) before making this driver live.');
+      router.push(`/admin/driver/${driver.id}`);
       return;
     }
 
-    setPasswordLoading(true);
-    setPasswordError('');
-    setPasswordSuccess('');
+    if (!isApproved) {
+      showToast('error', 'Approve the driver before setting them live.');
+      return;
+    }
 
+    setTogglingLiveId(driver.id);
     try {
-      await adminChangePassword(token, currentPassword, newPassword);
-      setPasswordSuccess('Password updated successfully!');
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-      setTimeout(() => {
-        setShowPasswordModal(false);
-        setPasswordSuccess('');
-      }, 1500);
+      const res = await updateDriverLiveStatus(token, driver.id, nextLive);
+      showToast('success', res.message || (nextLive ? 'Driver is live.' : 'Driver is offline.'));
+      const freshDrivers = await fetchDrivers(token);
+      setDrivers(freshDrivers);
+      if (activeTab === 'insights') loadInsights(token);
     } catch (err) {
-      setPasswordError(err.message || 'Failed to update password.');
+      showToast('error', err.message || 'Failed to update live status.');
     } finally {
-      setPasswordLoading(false);
+      setTogglingLiveId(null);
     }
   };
 
-  const showToast = (type, text) => {
-    setToastMessage({ type, text });
-    setTimeout(() => {
-      setToastMessage(null);
-    }, 4000);
-  };
-
-  // Filter Logic
-  const filteredDrivers = drivers.filter(driver => {
+  const filteredDrivers = drivers.filter((driver) => {
     const fullName = (driver.fullName || '').toLowerCase();
     const email = (driver.email || '').toLowerCase();
     const phone = (driver.mobileNumber || '').toLowerCase();
     const company = (driver.companyName || '').toLowerCase();
     const query = searchQuery.toLowerCase().trim();
-
-    const matchesSearch = 
-      fullName.includes(query) || 
-      email.includes(query) || 
-      phone.includes(query) || 
+    const matchesSearch =
+      fullName.includes(query) ||
+      email.includes(query) ||
+      phone.includes(query) ||
       company.includes(query);
-
     if (!matchesSearch) return false;
-
-    // Status Filter
     const isApproved = driver.isApproved === true || driver.isApproved === 1;
-
     if (statusFilter === 'APPROVED') return isApproved;
     if (statusFilter === 'PENDING') return !isApproved;
-
+    if (statusFilter === 'LIVE') return isApproved && (driver.locationLive === true || driver.isLive === true);
+    if (statusFilter === 'MISSING_LOC') return !driverHasLocation(driver);
     return true;
   });
 
-  // Stats Counters
   const totalCount = drivers.length;
-  const approvedCount = drivers.filter(d => d.isApproved === true || d.isApproved === 1).length;
-  const pendingCount = drivers.filter(d => d.isApproved === false || d.isApproved === 0).length;
-  const liveCount = drivers.filter(d => (d.isApproved === true) && (d.isLive === true || d.locationLive === true)).length;
+  const approvedCount = drivers.filter((d) => d.isApproved === true || d.isApproved === 1).length;
+  const pendingCount = totalCount - approvedCount;
+  const liveCount = drivers.filter(
+    (d) => (d.isApproved === true || d.isApproved === 1) && (d.locationLive === true || d.isLive === true)
+  ).length;
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50">
-      
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-5 py-4 rounded-xl shadow-xl border text-sm transition-all duration-300 animate-bounce ${
-          toastMessage.type === 'success' 
-            ? 'bg-green-50 border-green-200 text-green-800' 
-            : 'bg-red-50 border-red-200 text-red-800'
-        }`}>
-          {toastMessage.type === 'success' ? <ShieldCheck className="h-5 w-5 shrink-0" /> : <AlertCircle className="h-5 w-5 shrink-0" />}
-          <span className="font-semibold">{toastMessage.text}</span>
-        </div>
-      )}
-
-      {/* ── HEADER ── */}
-      <header className="flex-shrink-0 w-full bg-[#0b51c1] px-4 py-4 md:px-8 shadow-md">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:justify-between md:items-center gap-4">
-          {/* Left Brand */}
-          <div className="flex items-center gap-4">
-            <img 
-              src="https://cdn.prod.website-files.com/699f24e36021db019f687184/69d5648b03176e73b702b52f_callvan1.png" 
-              alt="Call-A-Van Logo" 
-              className="h-9 object-contain cursor-pointer"
-              onClick={() => router.push('/admin')}
-            />
-            <div className="h-6 w-[1px] bg-white/20 hidden md:block"></div>
-            <span className="text-white/80 font-bold text-xs uppercase tracking-widest hidden md:block mt-0.5">Admin Dashboard</span>
-          </div>
-
-          {/* Right Actions */}
-          <div className="flex items-center justify-between md:justify-end gap-4">
-            <div className="text-left md:text-right">
-              <p className="text-white text-xs font-bold uppercase tracking-wider text-blue-100">Logged In As</p>
-              <p className="text-white font-bold text-sm truncate max-w-[200px]" title={adminEmail}>
-                {adminEmail}
-              </p>
-            </div>
-            
-            <div className="flex items-center gap-2">
-              <button 
-                onClick={() => setShowPasswordModal(true)}
-                className="p-2.5 rounded-xl border border-white/20 bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer shadow-sm flex items-center justify-center gap-1.5 text-xs font-semibold"
-                title="Change Password"
-              >
-                <Lock className="h-4 w-4" />
-                <span className="hidden sm:inline">Password</span>
-              </button>
-              
-              <button 
-                onClick={handleLogout}
-                className="p-2.5 rounded-xl border border-white/30 bg-white/20 hover:bg-red-600 hover:border-red-600 hover:text-white text-white transition-all cursor-pointer shadow-sm flex items-center justify-center gap-1.5 text-xs font-semibold"
-                title="Logout"
-              >
-                <LogOut className="h-4 w-4" />
-                <span className="hidden sm:inline">Logout</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* ── MAIN CONTENT ── */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-8 md:px-8 space-y-8">
-        
-        {/* Metric Cards */}
-        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          
-          <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-            <div className="p-4 rounded-xl bg-blue-50 text-[#0b51c1]">
-              <Users className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">Total Drivers</p>
-              <p className="text-2xl font-extrabold text-slate-800 mt-1">{loading ? '...' : totalCount}</p>
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-            <div className="p-4 rounded-xl bg-amber-50 text-amber-600">
-              <Clock className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="text-slate-400 text-xs font-bold uppercase tracking-wider font-semibold">Pending Approval</p>
-              <p className="text-2xl font-extrabold text-slate-800 mt-1">{loading ? '...' : pendingCount}</p>
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-            <div className="p-4 rounded-xl bg-green-50 text-[#22c55e]">
-              <UserCheck className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">Approved Drivers</p>
-              <p className="text-2xl font-extrabold text-slate-800 mt-1">{loading ? '...' : approvedCount}</p>
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-            <div className="p-4 rounded-xl bg-teal-50 text-teal-600">
-              <RefreshCw className="h-6.5 w-6.5" />
-            </div>
-            <div>
-              <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">Live Map Drivers</p>
-              <p className="text-2xl font-extrabold text-slate-800 mt-1">{loading ? '...' : liveCount}</p>
-            </div>
-          </div>
-
-        </section>
-
-        {/* Filters and Table Container */}
-        <section className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col">
-          
-          {/* Controls Header */}
-          <div className="p-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            {/* Search Box */}
-            <div className="relative max-w-md w-full">
-              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                <Search className="h-4.5 w-4.5" />
-              </div>
-              <input
-                type="text"
-                placeholder="Search drivers by name, email, mobile, company..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="block w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-slate-900 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0b51c1]/20 focus:border-[#0b51c1] text-sm transition-all"
-              />
-              {searchQuery && (
-                <button 
-                  onClick={() => setSearchQuery('')}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 text-xs font-semibold cursor-pointer"
+    <AdminShell
+      adminEmail={adminEmail}
+      token={token}
+      activeTab={activeTab}
+      onTabChange={setActiveTab}
+      toastMessage={toastMessage}
+    >
+      {activeTab === 'insights' ? (
+        <InsightsPanel insights={insights} loading={insightsLoading} />
+      ) : (
+        <div className="space-y-5">
+          <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+            {[
+              { label: 'Total', value: totalCount, icon: Users, tone: 'text-[#0b51c1] bg-blue-50' },
+              { label: 'Pending', value: pendingCount, icon: Clock, tone: 'text-amber-600 bg-amber-50' },
+              { label: 'Approved', value: approvedCount, icon: UserCheck, tone: 'text-green-600 bg-green-50' },
+              { label: 'Live', value: liveCount, icon: Radio, tone: 'text-teal-600 bg-teal-50' },
+            ].map((card) => {
+              const Icon = card.icon;
+              return (
+                <div
+                  key={card.label}
+                  className="bg-white rounded-xl border border-slate-200 px-4 py-4 flex items-center gap-3 shadow-sm"
                 >
-                  Clear
+                  <div className={`p-2.5 rounded-lg ${card.tone}`}>
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{card.label}</p>
+                    <p className="text-xl font-extrabold text-slate-900">{loading ? '…' : card.value}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </section>
+
+          <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="p-4 md:p-5 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+              <div className="relative max-w-md w-full">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search name, email, phone, company…"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0b51c1]/20 focus:border-[#0b51c1]"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="bg-slate-100 p-1 rounded-lg flex items-center gap-0.5 overflow-x-auto">
+                  {[
+                    { label: 'All', value: 'ALL' },
+                    { label: 'Pending', value: 'PENDING' },
+                    { label: 'Approved', value: 'APPROVED' },
+                    { label: 'Live', value: 'LIVE' },
+                    { label: 'No location', value: 'MISSING_LOC' },
+                  ].map((tab) => (
+                    <button
+                      key={tab.value}
+                      type="button"
+                      onClick={() => setStatusFilter(tab.value)}
+                      className={`px-3 py-1.5 rounded-md text-xs font-bold whitespace-nowrap cursor-pointer ${
+                        statusFilter === tab.value
+                          ? 'bg-[#0b51c1] text-white'
+                          : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => loadDrivers()}
+                  disabled={loading}
+                  className="p-2.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-600 cursor-pointer disabled:opacity-50"
+                  title="Refresh"
+                >
+                  <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                 </button>
-              )}
+              </div>
             </div>
 
-            {/* Filter Tabs & Refresh */}
-            <div className="flex items-center gap-3 overflow-x-auto self-start md:self-auto">
-              <div className="bg-slate-100 p-1 rounded-xl flex items-center">
-                {[
-                  { label: 'All', value: 'ALL' },
-                  { label: 'Pending', value: 'PENDING' },
-                  { label: 'Approved', value: 'APPROVED' },
-                ].map(tab => (
-                  <button
-                    key={tab.value}
-                    onClick={() => setStatusFilter(tab.value)}
-                    className={`px-4 py-1.5 rounded-lg text-xs font-bold tracking-wide transition-all cursor-pointer ${
-                      statusFilter === tab.value 
-                        ? 'bg-[#0b51c1] text-white shadow-sm' 
-                        : 'text-slate-500 hover:text-slate-800'
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
+            {error && (
+              <div className="px-5 py-3 bg-red-50 text-red-700 text-sm font-semibold flex items-center gap-2 border-b border-red-100">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                {error}
               </div>
-              
-              <button 
-                onClick={() => loadDrivers()}
-                disabled={loading}
-                className="p-2.5 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-600 transition-colors cursor-pointer flex items-center justify-center disabled:opacity-50"
-                title="Refresh Drivers"
-              >
-                <RefreshCw className={`h-4.5 w-4.5 ${loading ? 'animate-spin' : ''}`} />
-              </button>
-            </div>
-          </div>
+            )}
 
-          {/* Error Message */}
-          {error && (
-            <div className="p-6 bg-red-50 text-red-700 text-sm font-semibold flex items-center gap-2 border-b border-red-100">
-              <AlertCircle className="h-5 w-5 shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
+            <div className="overflow-x-auto">
+              {loading ? (
+                <div className="py-16 flex flex-col items-center gap-3 text-slate-400">
+                  <Loader2 className="h-8 w-8 animate-spin text-[#0b51c1]" />
+                  <p className="text-sm font-medium">Loading drivers…</p>
+                </div>
+              ) : filteredDrivers.length === 0 ? (
+                <div className="py-16 text-center text-slate-400">
+                  <Users className="h-10 w-10 mx-auto text-slate-300 mb-2" />
+                  <p className="font-bold text-slate-700">No drivers found</p>
+                  <p className="text-sm mt-1">Try a different search or filter.</p>
+                </div>
+              ) : (
+                <table className="w-full text-left min-w-[920px]">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-100 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                      <th className="py-3 px-5">Driver</th>
+                      <th className="py-3 px-5">Contact</th>
+                      <th className="py-3 px-5">Company</th>
+                      <th className="py-3 px-5 text-center">Status</th>
+                      <th className="py-3 px-5 text-center">Live</th>
+                      <th className="py-3 px-5 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-sm">
+                    {filteredDrivers.map((driver) => {
+                      const isApproved = driver.isApproved === true || driver.isApproved === 1;
+                      const isOnline =
+                        isApproved && (driver.locationLive === true || driver.isLive === true);
+                      const hasLoc = driverHasLocation(driver);
+                      const profileUrl = driver.profileImageUrl
+                        ? getCorrectImageUrl(driver.profileImageUrl)
+                        : null;
 
-          {/* Drivers List Table */}
-          <div className="flex-1 overflow-x-auto">
-            {loading ? (
-              <div className="py-20 text-center flex flex-col items-center justify-center gap-3 text-slate-400">
-                <Loader2 className="h-8 w-8 animate-spin text-[#0b51c1]" />
-                <p className="text-sm font-medium">Loading drivers records...</p>
-              </div>
-            ) : filteredDrivers.length === 0 ? (
-              <div className="py-20 text-center flex flex-col items-center justify-center gap-3 text-slate-400 px-4">
-                <Users className="h-10 w-10 text-slate-300" />
-                <h4 className="text-slate-700 font-bold text-base mt-2">No Drivers Found</h4>
-                <p className="text-sm max-w-sm">No drivers match your search query or selected filter criteria.</p>
-              </div>
-            ) : (
-              <table className="w-full text-left border-collapse min-w-[800px]">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-100 text-xs font-bold uppercase tracking-wider text-slate-500">
-                    <th className="py-4 px-6">Driver Profile</th>
-                    <th className="py-4 px-6">Contact / Phone</th>
-                    <th className="py-4 px-6">Company & Area</th>
-                    <th className="py-4 px-6 text-center">Status</th>
-                    <th className="py-4 px-6 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-sm">
-                  {filteredDrivers.map(driver => {
-                    const isApproved = driver.isApproved === true || driver.isApproved === 1;
-                    const isOnline = isApproved && (driver.locationLive === true || driver.isLive === true);
-
-                    return (
-                      <tr key={driver.id} className="hover:bg-slate-50/50 transition-colors">
-                        
-                        {/* Driver Profile */}
-                        <td className="py-4 px-6">
-                          <div className="flex items-center gap-3">
-                            <div className="w-11 h-11 rounded-full bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
-                              {driver.profileImageUrl ? (
-                                <img 
-                                  src={driver.profileImageUrl} 
-                                  alt="" 
-                                  className="w-full h-full object-cover" 
-                                  onError={(e) => { e.target.src = ''; }}
-                                />
-                              ) : (
-                                <span className="text-slate-400 font-bold text-base">👤</span>
-                              )}
+                      return (
+                        <tr key={driver.id} className="hover:bg-slate-50/80">
+                          <td className="py-3.5 px-5">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
+                                {profileUrl ? (
+                                  <img src={profileUrl} alt="" className="w-full h-full object-cover" />
+                                ) : (
+                                  <span className="text-slate-400 text-sm font-bold">
+                                    {(driver.fullName || '?').charAt(0).toUpperCase()}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="font-bold text-slate-800 truncate max-w-[180px]">
+                                  {driver.fullName || 'No name'}
+                                </p>
+                                <p className="text-xs text-slate-400 truncate max-w-[180px]">{driver.email}</p>
+                              </div>
                             </div>
-                            <div className="min-w-0">
-                              <p className="font-bold text-slate-800 truncate max-w-[180px]">
-                                {driver.fullName || 'No Name'}
-                              </p>
-                              <p className="text-xs text-slate-400 truncate max-w-[180px]">
-                                {driver.email}
-                              </p>
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* Contact Details */}
-                        <td className="py-4 px-6 text-slate-700 font-medium">
-                          {driver.mobileNumber || 'N/A'}
-                        </td>
-
-                        {/* Company & Vehicle info */}
-                        <td className="py-4 px-6">
-                          <p className="font-semibold text-slate-700 truncate max-w-[150px]">
-                            {driver.companyName || 'Independent'}
-                          </p>
-                          <p className="text-xs text-slate-400 mt-0.5 truncate max-w-[150px]">
-                            {driver.vehicleType || 'Unknown Vehicle'}
-                          </p>
-                        </td>
-
-                        {/* Status Badges */}
-                        <td className="py-4 px-6">
-                          <div className="flex flex-col items-center gap-1.5">
-                            {/* Approval Badge */}
+                          </td>
+                          <td className="py-3.5 px-5 font-medium text-slate-700">
+                            {driver.mobileNumber || '—'}
+                          </td>
+                          <td className="py-3.5 px-5">
+                            <p className="font-semibold text-slate-700 truncate max-w-[140px]">
+                              {driver.companyName || 'Independent'}
+                            </p>
+                            <p className="text-xs text-slate-400 truncate max-w-[140px]">
+                              {driver.vehicleType || '—'}
+                            </p>
+                          </td>
+                          <td className="py-3.5 px-5 text-center">
                             {isApproved ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-green-50 text-green-700 border border-green-200">
-                                <span className="w-1.5 h-1.5 rounded-full bg-green-600"></span>
+                              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-bold bg-green-50 text-green-700 border border-green-200">
                                 Approved
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                                <span className="w-1.5 h-1.5 rounded-full bg-amber-505"></span>
-                                Pending Approval
+                              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                Pending
                               </span>
                             )}
-
-                            {/* Active Map Status */}
-                            {isApproved && (
-                              isOnline ? (
-                                <span className="text-[10px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded border border-green-100 flex items-center gap-1">
-                                  <span className="w-1 h-1 rounded-full bg-green-500 animate-ping"></span>
-                                  Online (Live Map)
-                                </span>
-                              ) : (
-                                <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200">
-                                  Offline
-                                </span>
-                              )
+                            {!hasLoc && (
+                              <p className="text-[10px] font-bold text-rose-500 mt-1">No location</p>
                             )}
-                          </div>
-                        </td>
-
-                        {/* Actions */}
-                        <td className="py-4 px-6 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            {/* View Details Page Link */}
+                          </td>
+                          <td className="py-3.5 px-5 text-center">
                             <button
-                              onClick={() => router.push(`/admin/driver/${driver.id}`)}
-                              className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 text-xs font-bold shadow-sm"
-                              title="View Details Profile"
+                              type="button"
+                              disabled={!isApproved || togglingLiveId === driver.id}
+                              onClick={() => handleLiveToggle(driver)}
+                              title={
+                                !isApproved
+                                  ? 'Approve first'
+                                  : !hasLoc && !isOnline
+                                    ? 'Set coordinates first'
+                                    : isOnline
+                                      ? 'Set offline'
+                                      : 'Set live'
+                              }
+                              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                                isOnline ? 'bg-emerald-500' : 'bg-slate-300'
+                              }`}
                             >
-                              <Eye className="h-4 w-4" />
-                              <span>Details</span>
+                              <span
+                                className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${
+                                  isOnline ? 'translate-x-6' : 'translate-x-1'
+                                }`}
+                              />
                             </button>
-
-                            {/* Approve / Disapprove Toggle button */}
-                            {isApproved ? (
+                            <p className="text-[10px] font-bold mt-1 text-slate-400">
+                              {togglingLiveId === driver.id ? '…' : isOnline ? 'Live' : 'Offline'}
+                            </p>
+                          </td>
+                          <td className="py-3.5 px-5 text-right">
+                            <div className="flex items-center justify-end gap-2">
                               <button
-                                onClick={() => handleStatusToggle(driver.id, true)}
-                                className="px-3 py-2 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
-                                title="Disapprove Driver"
+                                type="button"
+                                onClick={() => router.push(`/admin/driver/${driver.id}`)}
+                                className="px-2.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer"
                               >
-                                <UserX className="h-4 w-4" />
-                                <span>Disapprove</span>
+                                <Eye className="h-3.5 w-3.5" />
+                                Details
                               </button>
-                            ) : (
-                              <button
-                                onClick={() => handleStatusToggle(driver.id, false)}
-                                className="px-3 py-2 bg-green-50 hover:bg-green-100 border border-green-200 text-green-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
-                                title="Approve Driver"
-                              >
-                                <UserCheck className="h-4 w-4" />
-                                <span>Approve</span>
-                              </button>
-                            )}
-                          </div>
-                        </td>
-
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )}
-          </div>
-
-        </section>
-
-      </main>
-
-      {/* ── PASSWORD UPDATE MODAL ── */}
-      {showPasswordModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden border border-slate-100">
-            
-            <div className="bg-[#0b51c1] px-6 py-5 flex items-center justify-between text-white">
-              <h3 className="font-bold text-base flex items-center gap-2">
-                <Lock className="h-5 w-5" />
-                Change Admin Password
-              </h3>
-              <button 
-                onClick={() => setShowPasswordModal(false)}
-                className="text-white/80 hover:text-white cursor-pointer"
-              >
-                <X className="h-5 w-5" />
-              </button>
+                              {isApproved ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleStatusToggle(driver.id, true)}
+                                  className="px-2.5 py-2 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer"
+                                >
+                                  <UserX className="h-3.5 w-3.5" />
+                                  Disapprove
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleStatusToggle(driver.id, false)}
+                                  className="px-2.5 py-2 bg-green-50 hover:bg-green-100 border border-green-200 text-green-700 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer"
+                                >
+                                  <UserCheck className="h-3.5 w-3.5" />
+                                  Approve
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
             </div>
-
-            <form onSubmit={handlePasswordChange} className="p-6 space-y-4">
-              {passwordError && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs font-semibold text-red-600 flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4 shrink-0" />
-                  <span>{passwordError}</span>
-                </div>
-              )}
-
-              {passwordSuccess && (
-                <div className="p-3 bg-green-50 border border-green-200 rounded-xl text-xs font-semibold text-green-600 flex items-center gap-2">
-                  <Check className="h-4 w-4 shrink-0" />
-                  <span>{passwordSuccess}</span>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                  Current Password
-                </label>
-                <input
-                  type="password"
-                  required
-                  placeholder="••••••••"
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  className="block w-full px-4 py-2.5 rounded-xl border border-slate-200 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#0b51c1]/20 focus:border-[#0b51c1] transition-all bg-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                  New Password
-                </label>
-                <input
-                  type="password"
-                  required
-                  placeholder="Min 6 characters, letter & number"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="block w-full px-4 py-2.5 rounded-xl border border-slate-200 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#0b51c1]/20 focus:border-[#0b51c1] transition-all bg-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                  Confirm New Password
-                </label>
-                <input
-                  type="password"
-                  required
-                  placeholder="Repeat new password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="block w-full px-4 py-2.5 rounded-xl border border-slate-200 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#0b51c1]/20 focus:border-[#0b51c1] transition-all bg-white"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setShowPasswordModal(false)}
-                  className="px-4 py-2 rounded-xl text-slate-500 hover:bg-slate-50 text-xs font-bold cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={passwordLoading}
-                  className="px-5 py-2 bg-[#0b51c1] hover:bg-[#083a8c] text-white text-xs font-bold rounded-xl flex items-center gap-1 cursor-pointer disabled:opacity-50"
-                >
-                  {passwordLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save Password'}
-                </button>
-              </div>
-            </form>
-          </div>
+          </section>
         </div>
       )}
+    </AdminShell>
+  );
+}
 
-    </div>
+export default function DashboardPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-[#f3f5f9] text-slate-400">
+          <Loader2 className="h-8 w-8 animate-spin text-[#0b51c1]" />
+        </div>
+      }
+    >
+      <DashboardInner />
+    </Suspense>
   );
 }

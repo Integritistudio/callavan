@@ -164,8 +164,24 @@ io.on('connection', (socket) => {
       // Update location table: set is_live = false, but keep is_logged_in = true
       await db.query('UPDATE driver_locations SET is_live = false WHERE driver_id = $1', [driverId]);
 
-      // Broadcast status change
+      // Broadcast status change; prefer offline pin for map position when set
+      const locRes = await db.query(
+        `SELECT latitude, longitude, offline_latitude, offline_longitude
+         FROM driver_locations WHERE driver_id = $1`,
+        [driverId]
+      );
+      const loc = locRes.rows[0];
+      const displayLat = loc?.offline_latitude ?? loc?.latitude;
+      const displayLng = loc?.offline_longitude ?? loc?.longitude;
       io.emit('driver_status_changed', { driverId, isLive: false });
+      if (displayLat != null && displayLng != null) {
+        io.emit('driver_location_changed', {
+          driverId,
+          latitude: displayLat,
+          longitude: displayLng,
+          isLive: false,
+        });
+      }
       const driverName = await getDriverName(driverId);
       console.log(`${getTimestamp()} 🧹 [WebSocket] Driver #${driverId} (${driverName}) went offline manually.`);
     } catch (error) {
