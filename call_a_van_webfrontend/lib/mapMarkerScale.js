@@ -1,6 +1,6 @@
 /** Shared van marker sizing — keep live & offline consistent. */
-export const VAN_ICON_SIZE = 44;
-export const VAN_SVG_SIZE = 20;
+export const VAN_ICON_SIZE = 58;
+export const VAN_SVG_SIZE = 28;
 export const VAN_BORDER = '2.5px solid white';
 export const VAN_SHADOW = '0 3px 8px rgba(0,0,0,0.3)';
 /** Room for radar rings pulsing to 2.5× icon size */
