@@ -48,6 +48,11 @@ html, body {
   display: none !important;
 }
 
+/* Allow radar rings / popups to paint outside the marker box */
+.mapboxgl-marker {
+  overflow: visible !important;
+}
+
 
 /* ─────────────────────────────────────────────────
    RADAR PULSE ANIMATION — Live driver green ring
@@ -154,8 +159,9 @@ html, body {
   bottom: 100%;
   left: 50%;
   transform: translateX(-50%);
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   z-index: 10;
+  pointer-events: auto;
 }
 
 /* ─────────────────────────────────────────────────
