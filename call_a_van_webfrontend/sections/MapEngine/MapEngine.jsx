@@ -36,6 +36,13 @@ import {
   DRIVER_MAP_HEADER_NO_LOCATION,
   LOCATION_PERMISSION_BANNER,
 } from '@/constants/mapCopy';
+import {
+  MARKER_Z_OWN,
+  MARKER_Z_USER,
+  VAN_ICON_SIZE,
+  getDriverMarkerZIndex,
+  getVanMarkerScale,
+} from '@/lib/mapMarkerScale';
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || '';
 const MAPBOX_USERNAME = process.env.NEXT_PUBLIC_MAPBOX_USERNAME || 'mapbox';
@@ -72,6 +79,7 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
   const [globalLoadingMessage, setGlobalLoadingMessage] = useState('Loading...');
   const [selectedDriver, setSelectedDriver] = useState(null);
   const [selectedDriverAddress, setSelectedDriverAddress] = useState(null);
+  const [hoveredDriverId, setHoveredDriverId] = useState(null);
 
   const [showLogin, setShowLogin] = useState(false);
   const [showSignup, setShowSignup] = useState(false);
@@ -86,6 +94,8 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
   const animFramesRef = useRef({});
   const mapRef = useRef(null);
   const prevLocationStatusRef = useRef('unknown');
+  /** Prevents map onClick from clearing selection right after a marker tap. */
+  const suppressMapClickRef = useRef(false);
 
   useEffect(() => {
     loadSession();
@@ -420,6 +430,91 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
     } catch { return `${lat.toFixed(4)}, ${lng.toFixed(4)}`; }
   }
 
+  function markMarkerInteraction(e) {
+    e?.stopPropagation?.();
+    e?.originalEvent?.stopPropagation?.();
+    e?.originalEvent?.preventDefault?.();
+    suppressMapClickRef.current = true;
+    // Mapbox can emit map click after HTML marker clicks; keep suppress briefly.
+    window.setTimeout(() => {
+      suppressMapClickRef.current = false;
+    }, 50);
+  }
+
+  function handleMapClick() {
+    if (suppressMapClickRef.current) return;
+    setSelectedDriver(null);
+  }
+
+  function onDriverMarkerClick(driver, e) {
+    markMarkerInteraction(e);
+    const map = mapRef.current?.getMap?.();
+    let target = driver;
+    const clientX = e?.clientX ?? e?.originalEvent?.clientX;
+    const clientY = e?.clientY ?? e?.originalEvent?.clientY;
+    if (map && clientX != null && clientY != null) {
+      const rect = map.getCanvas().getBoundingClientRect();
+      const nearestId = resolveHoveredDriverId({
+        x: clientX - rect.left,
+        y: clientY - rect.top,
+      });
+      if (nearestId != null) {
+        const nearest = drivers.find((d) => String(d.id) === String(nearestId));
+        if (nearest) target = nearest;
+      }
+    }
+    setHoveredDriverId(target.id);
+    handleSelectDriver(target);
+  }
+
+  /** Pick the geometrically nearest driver under the cursor (fixes overlapping hitboxes). */
+  function resolveHoveredDriverId(point) {
+    const map = mapRef.current?.getMap?.();
+    if (!map || !point) return null;
+
+    const hitRadius = (VAN_ICON_SIZE * getVanMarkerScale(viewState.zoom)) / 2;
+    let bestId = null;
+    let bestDist = hitRadius;
+
+    for (const d of drivers) {
+      if (String(d.id) === String(loggedInDriver?.id ?? '')) continue;
+      const lat = parseFloat(d.latitude);
+      const lng = parseFloat(d.longitude);
+      if (isNaN(lat) || isNaN(lng)) continue;
+      const projected = map.project([lng, lat]);
+      const dist = Math.hypot(projected.x - point.x, projected.y - point.y);
+      if (dist <= bestDist) {
+        bestDist = dist;
+        bestId = d.id;
+      }
+    }
+    return bestId;
+  }
+
+  function updateHoveredDriverFromPoint(point) {
+    const nextId = resolveHoveredDriverId(point);
+    setHoveredDriverId((prev) => (String(prev ?? '') === String(nextId ?? '') ? prev : nextId));
+  }
+
+  function handleMapMouseMove(e) {
+    if (isContentPage) return;
+    updateHoveredDriverFromPoint(e.point);
+  }
+
+  function handleMapMouseLeave() {
+    setHoveredDriverId(null);
+  }
+
+  function handleMarkerMouseMove(e) {
+    const map = mapRef.current?.getMap?.();
+    if (!map) return;
+    const rect = map.getCanvas().getBoundingClientRect();
+    updateHoveredDriverFromPoint({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    });
+  }
+
   async function handleSelectDriver(driver) {
     setSelectedDriver(driver);
     setSelectedDriverAddress('Loading address...');
@@ -604,7 +699,9 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
             {...viewState}
             onMove={(e) => setViewState(e.viewState)}
             onLoad={() => mapRef.current?.getMap?.()?.resize()}
-            onClick={() => setSelectedDriver(null)}
+            onClick={handleMapClick}
+            onMouseMove={handleMapMouseMove}
+            onMouseLeave={handleMapMouseLeave}
             style={{ width: '100%', height: '100%', minHeight: '100%' }}
             attributionControl={false}
             cursor="default"
@@ -616,20 +713,46 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
             touchZoomRotate={!isContentPage}
           >
           {/* Other Drivers */}
-          {drivers.filter((d) => d.id !== loggedInDriver?.id).map((driver) => {
+          {drivers.filter((d) => String(d.id) !== String(loggedInDriver?.id ?? '')).map((driver) => {
             const lat = parseFloat(driver.latitude);
             const lng = parseFloat(driver.longitude);
             if (isNaN(lat) || isNaN(lng)) return null;
+            const isSelected = String(selectedDriver?.id ?? '') === String(driver.id);
+            const isHovered = String(hoveredDriverId ?? '') === String(driver.id);
             return (
-              <Marker key={driver.id} latitude={lat} longitude={lng} anchor="center">
-                <div className="relative">
+              <Marker
+                key={driver.id}
+                latitude={lat}
+                longitude={lng}
+                anchor="center"
+                style={{
+                  zIndex: getDriverMarkerZIndex({ isSelected, isHovered }),
+                  overflow: 'visible',
+                }}
+              >
+                <div
+                  className="relative"
+                  onMouseMove={handleMarkerMouseMove}
+                  onMouseLeave={() => {
+                    setHoveredDriverId((prev) =>
+                      String(prev ?? '') === String(driver.id) ? null : prev
+                    );
+                  }}
+                >
                   {isLive(driver) ? (
-                    <LiveDriverMarker isOrange={!!jwtToken} zoom={viewState.zoom} onClick={(e) => { e.stopPropagation(); handleSelectDriver(driver); }} />
+                    <LiveDriverMarker
+                      isOrange={!!jwtToken}
+                      zoom={viewState.zoom}
+                      onClick={(e) => onDriverMarkerClick(driver, e)}
+                    />
                   ) : (
-                    <OfflineDriverMarker zoom={viewState.zoom} onClick={(e) => { e.stopPropagation(); handleSelectDriver(driver); }} />
+                    <OfflineDriverMarker
+                      zoom={viewState.zoom}
+                      onClick={(e) => onDriverMarkerClick(driver, e)}
+                    />
                   )}
                   {/* Popup */}
-                  {selectedDriver?.id === driver.id && (() => {
+                  {isSelected && (() => {
                     let servicesList = [];
                     if (driver.services) {
                       try {
@@ -645,12 +768,15 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
                     const profileImgUrl = driver.profileImageUrl ? getCorrectImageUrl(driver.profileImageUrl) : null;
                     
                     return (
-                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-[20px] z-50 w-[min(260px,calc(100vw-2rem))]">
+                      <div
+                        className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-50 w-[min(260px,calc(100vw-2rem))] pointer-events-auto"
+                        onClick={(e) => markMarkerInteraction(e)}
+                      >
                         <div className="bg-white rounded-[12px] shadow-[0_3px_10px_rgba(0,0,0,0.26)] w-full overflow-hidden">
                           {/* Header */}
                           <div className="relative p-2.5 pb-1.5 flex items-start gap-2">
                             {/* Close Button */}
-                            <button onClick={(e) => { e.stopPropagation(); setSelectedDriver(null); }} className="absolute top-2.5 right-2.5 w-5 h-5 bg-black/10 rounded-full flex items-center justify-center cursor-pointer hover:bg-black/20">
+                            <button onClick={(e) => { markMarkerInteraction(e); setSelectedDriver(null); }} className="absolute top-2.5 right-2.5 w-5 h-5 bg-black/10 rounded-full flex items-center justify-center cursor-pointer hover:bg-black/20">
                               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-black/50"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
                             </button>
                             
@@ -689,7 +815,7 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
                             <>
                               <div className="h-[0.5px] bg-gray-200 w-full"></div>
                               <div className="px-2.5 py-1.5 flex flex-col gap-1">
-                                <button onClick={(e) => { e.stopPropagation(); makePhoneCall(driver.mobileNumber || driver.phoneNumber, driver); }} className="flex items-center gap-1.5 cursor-pointer hover:bg-gray-50 p-0.5 -ml-0.5 rounded w-full text-left">
+                                <button onClick={(e) => { markMarkerInteraction(e); makePhoneCall(driver.mobileNumber || driver.phoneNumber, driver); }} className="flex items-center gap-1.5 cursor-pointer hover:bg-gray-50 p-0.5 -ml-0.5 rounded w-full text-left">
                                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-500 shrink-0"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
                                   <span className="text-[11px] font-bold text-gray-800">{driver.mobileNumber || driver.phoneNumber || 'N/A'}</span>
                                 </button>
@@ -709,7 +835,7 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
                                     </div>
                                   ))}
                                 </div>
-                                <button onClick={(e) => { e.stopPropagation(); makePhoneCall(driver.mobileNumber || driver.phoneNumber, driver); }} className="w-full bg-[#2E7D32] hover:bg-[#256629] text-white rounded-md h-[34px] flex items-center justify-center gap-1.5 cursor-pointer">
+                                <button onClick={(e) => { markMarkerInteraction(e); makePhoneCall(driver.mobileNumber || driver.phoneNumber, driver); }} className="w-full bg-[#2E7D32] hover:bg-[#256629] text-white rounded-md h-[34px] flex items-center justify-center gap-1.5 cursor-pointer">
                                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
                                   <span className="text-[12px] font-bold">Call a Driver</span>
                                 </button>
@@ -729,8 +855,13 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
 
           {/* Own Driver Marker (Live or Offline) */}
           {jwtToken && hasOwnLocation && (
-            <Marker latitude={ownDriverMarkerLat} longitude={ownDriverMarkerLng} anchor="center">
-              <div className="relative z-20">
+            <Marker
+              latitude={ownDriverMarkerLat}
+              longitude={ownDriverMarkerLng}
+              anchor="center"
+              style={{ zIndex: MARKER_Z_OWN }}
+            >
+              <div className="relative">
                 {effectiveDriverLive ? (
                   <LiveDriverMarker isOrange={false} zoom={viewState.zoom} />
                 ) : (
@@ -744,7 +875,12 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
 
           {/* User Location */}
           {!jwtToken && userLocation && (
-            <Marker latitude={userLocation.lat} longitude={userLocation.lng} anchor="center">
+            <Marker
+              latitude={userLocation.lat}
+              longitude={userLocation.lng}
+              anchor="center"
+              style={{ zIndex: MARKER_Z_USER }}
+            >
               <UserLocationMarker />
             </Marker>
           )}
