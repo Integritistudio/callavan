@@ -79,7 +79,6 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
   const [globalLoading, setGlobalLoading] = useState(false);
   const [globalLoadingMessage, setGlobalLoadingMessage] = useState('Loading...');
   const [selectedDriver, setSelectedDriver] = useState(null);
-  const [selectedDriverAddress, setSelectedDriverAddress] = useState(null);
   const [hoveredDriverId, setHoveredDriverId] = useState(null);
 
   const [showLogin, setShowLogin] = useState(false);
@@ -423,14 +422,6 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
     }
   }
 
-  async function fetchAddress(lat, lng) {
-    try {
-      const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${MAPBOX_TOKEN}&limit=1`);
-      const data = await res.json();
-      return data.features?.[0]?.place_name || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-    } catch { return `${lat.toFixed(4)}, ${lng.toFixed(4)}`; }
-  }
-
   function markMarkerInteraction(e) {
     e?.stopPropagation?.();
     e?.originalEvent?.stopPropagation?.();
@@ -516,20 +507,13 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
     });
   }
 
-  async function handleSelectDriver(driver) {
+  function handleSelectDriver(driver) {
     setSelectedDriver(driver);
-    setSelectedDriverAddress('Loading address...');
     trackEvent('Profile viewed', {
       userType: jwtToken ? 'driver' : 'guest',
       userEmail: loggedInDriver?.email || '',
       driverEmail: driver?.email || '',
     });
-    const lat = parseFloat(driver.latitude);
-    const lng = parseFloat(driver.longitude);
-    if (!isNaN(lat) && !isNaN(lng)) {
-      const addr = await fetchAddress(lat, lng);
-      setSelectedDriverAddress(addr);
-    } else setSelectedDriverAddress('Location not available yet');
   }
 
   function handleLoginSuccess(token, driver) {
@@ -936,10 +920,6 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-500 shrink-0"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
                             <span className="text-[11px] font-bold text-gray-800">{driver.mobileNumber || driver.phoneNumber || 'N/A'}</span>
                           </button>
-                          <div className="flex items-start gap-1.5 p-0.5 -ml-0.5">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-red-500 shrink-0 mt-0.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                            <span className="text-[10px] text-gray-800 leading-tight line-clamp-2">{selectedDriverAddress || 'Loading address...'}</span>
-                          </div>
                         </div>
                         <div className="h-[0.5px] bg-gray-200 w-full"></div>
                         <div className="p-2.5 pt-1.5 pb-2.5">

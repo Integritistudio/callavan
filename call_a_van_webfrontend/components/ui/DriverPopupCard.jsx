@@ -4,7 +4,7 @@
 'use client';
 import { getCorrectImageUrl } from '@/lib/api';
 
-export default function DriverPopupCard({ driver, address, isDriverMode, onClose, onCall }) {
+export default function DriverPopupCard({ driver, isDriverMode, onClose, onCall }) {
   const name = driver.fullName?.includes('@')
     ? driver.fullName.split('@')[0]
     : (driver.fullName || 'Driver');
@@ -70,14 +70,6 @@ export default function DriverPopupCard({ driver, address, isDriverMode, onClose
 
         {/* Body */}
         <div className="p-3 space-y-2">
-          {/* Address */}
-          <div className="flex items-start gap-2 text-xs text-gray-600">
-            <span>📍</span>
-            <span className="leading-relaxed">
-              {address || 'Fetching location...'}
-            </span>
-          </div>
-
           {/* Bio */}
           {driver.shortBio && (
             <div className="text-xs text-gray-500 italic">"{driver.shortBio}"</div>
