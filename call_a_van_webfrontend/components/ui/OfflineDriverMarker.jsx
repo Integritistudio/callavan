@@ -7,18 +7,18 @@ import {
   VAN_SVG_SIZE,
   VAN_BORDER,
   VAN_SHADOW,
-  LIVE_MARKER_CONTAINER,
+  OFFLINE_MARKER_CONTAINER,
 } from '@/lib/mapMarkerScale';
 
 export default function OfflineDriverMarker({ zoom = 14, onClick }) {
-  const scale = getVanMarkerScale(zoom);
+  const scale = getVanMarkerScale(zoom, { live: false });
 
   return (
     <div
       className="relative flex items-center justify-center cursor-pointer"
       style={{
-        width: LIVE_MARKER_CONTAINER,
-        height: LIVE_MARKER_CONTAINER,
+        width: OFFLINE_MARKER_CONTAINER,
+        height: OFFLINE_MARKER_CONTAINER,
         transform: `scale(${scale})`,
         transformOrigin: 'center center',
         transition: 'transform 0.25s ease-out',
