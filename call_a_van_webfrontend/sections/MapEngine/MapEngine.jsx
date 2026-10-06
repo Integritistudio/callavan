@@ -11,7 +11,6 @@ import { showNotification } from '@/components/ui/ToastManager';
 import LiveDriverMarker from '@/components/ui/LiveDriverMarker';
 import OfflineDriverMarker from '@/components/ui/OfflineDriverMarker';
 import UserLocationMarker from '@/components/ui/UserLocationMarker';
-import DriverPopupCard from '@/components/ui/DriverPopupCard';
 import DriverProfileDetailsModal from '@/components/ui/DriverProfileDetailsModal';
 import LoginModal from '@/sections/LoginModal/LoginModal';
 import SignupModal from '@/sections/SignupModal/SignupModal';
@@ -40,8 +39,10 @@ import {
   MARKER_Z_OWN,
   MARKER_Z_USER,
   VAN_ICON_SIZE,
+  distanceMiles,
   getDriverMarkerZIndex,
   getVanMarkerScale,
+  NEARBY_RADIUS_MILES,
 } from '@/lib/mapMarkerScale';
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || '';
@@ -595,8 +596,19 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
   const ownDriverMarkerLat = resolvedDriverLocation?.lat;
   const ownDriverMarkerLng = resolvedDriverLocation?.lng;
   const profileUrl = loggedInDriver?.profileImageUrl ? getCorrectImageUrl(loggedInDriver.profileImageUrl) : null;
-  const liveCount = drivers.filter(d => isLive(d)).length;
-  const offlineCount = drivers.length - liveCount;
+
+  const isWithinNearbyRadius = (driver) => {
+    if (!userLocation) return false;
+    const lat = parseFloat(driver.latitude);
+    const lng = parseFloat(driver.longitude);
+    if (Number.isNaN(lat) || Number.isNaN(lng)) return false;
+    return distanceMiles(userLocation.lat, userLocation.lng, lat, lng) <= NEARBY_RADIUS_MILES;
+  };
+
+  // "Near You" / status counts: live & offline within 20 miles of the user
+  const nearbyDrivers = userLocation ? drivers.filter(isWithinNearbyRadius) : [];
+  const liveCount = nearbyDrivers.filter((d) => isLive(d)).length;
+  const offlineCount = nearbyDrivers.filter((d) => !isLive(d)).length;
   const effectiveDriverLive = isDriverLive && hasOwnLocation;
   const driverNeedsLocation = isLoggedInDriver && !hasOwnLocation && locationStatus !== 'granted';
   const showDriverLocationBanner = driverNeedsLocation && !driverLocationBannerDismissed;
@@ -751,103 +763,6 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
                       onClick={(e) => onDriverMarkerClick(driver, e)}
                     />
                   )}
-                  {/* Popup */}
-                  {isSelected && (() => {
-                    let servicesList = [];
-                    if (driver.services) {
-                      try {
-                        servicesList = typeof driver.services === 'string' ? JSON.parse(driver.services) : driver.services;
-                      } catch(e) {}
-                    }
-                    if (!Array.isArray(servicesList) || servicesList.length === 0) {
-                      servicesList = ['General Van Services'];
-                    }
-                    const isDriverLive = isLive(driver);
-                    const isDriverMode = !!jwtToken; // user is logged in as driver
-                    const displayName = driver.fullName?.split('@')[0] || 'Driver Profile';
-                    const profileImgUrl = driver.profileImageUrl ? getCorrectImageUrl(driver.profileImageUrl) : null;
-                    
-                    return (
-                      <div
-                        className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-50 w-[min(260px,calc(100vw-2rem))] pointer-events-auto"
-                        onClick={(e) => markMarkerInteraction(e)}
-                      >
-                        <div className="bg-white rounded-[12px] shadow-[0_3px_10px_rgba(0,0,0,0.26)] w-full overflow-hidden">
-                          {/* Header */}
-                          <div className="relative p-2.5 pb-1.5 flex items-start gap-2">
-                            {/* Close Button */}
-                            <button onClick={(e) => { markMarkerInteraction(e); setSelectedDriver(null); }} className="absolute top-2.5 right-2.5 w-5 h-5 bg-black/10 rounded-full flex items-center justify-center cursor-pointer hover:bg-black/20">
-                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-black/50"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-                            </button>
-                            
-                            {/* Avatar */}
-                            <div className="w-10 h-10 rounded-full bg-[#2E7D32]/10 flex items-center justify-center shrink-0 overflow-hidden">
-                              {profileImgUrl ? (
-                                <img src={profileImgUrl} alt="" className="w-full h-full object-cover" />
-                              ) : (
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[#2E7D32]"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                              )}
-                            </div>
-                            
-                            {/* Details */}
-                            <div className="flex-1 min-w-0 pr-6">
-                              <div className="flex items-center gap-1">
-                                <span className="font-bold text-[13px] text-gray-800 truncate">{displayName}</span>
-                                <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold ${isDriverLive ? 'bg-[#E8F5E9] text-[#2E7D32]' : 'bg-[#EEEEEE] text-gray-700'}`}>
-                                  {isDriverLive ? 'Online' : 'Offline'}
-                                </span>
-                              </div>
-                              <div className="text-[10px] text-gray-600 font-medium truncate mt-[1px]">
-                                {driver.companyName || 'Independent Driver'}
-                              </div>
-                            </div>
-                          </div>
-                          
-                          {isDriverMode ? (
-                            <>
-                              <div className="h-[0.5px] bg-gray-200 w-full"></div>
-                              <div className="px-2.5 py-2 flex items-center gap-1.5">
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-500"><path d="M5 18H3c-.6 0-1-.4-1-1V7c0-.6.4-1 1-1h10c.6 0 1 .4 1 1v11"/><path d="M14 9h4l4 4v5c0 .6-.4 1-1 1h-2"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg>
-                                <span className="text-[10px] font-bold text-gray-800 truncate">Vehicle: {driver.vehicleType || 'N/A'}</span>
-                              </div>
-                            </>
-                          ) : (
-                            <>
-                              <div className="h-[0.5px] bg-gray-200 w-full"></div>
-                              <div className="px-2.5 py-1.5 flex flex-col gap-1">
-                                <button onClick={(e) => { markMarkerInteraction(e); makePhoneCall(driver.mobileNumber || driver.phoneNumber, driver); }} className="flex items-center gap-1.5 cursor-pointer hover:bg-gray-50 p-0.5 -ml-0.5 rounded w-full text-left">
-                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-500 shrink-0"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-                                  <span className="text-[11px] font-bold text-gray-800">{driver.mobileNumber || driver.phoneNumber || 'N/A'}</span>
-                                </button>
-                                <div className="flex items-start gap-1.5 p-0.5 -ml-0.5">
-                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-red-500 shrink-0 mt-0.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                                  <span className="text-[10px] text-gray-800 leading-tight line-clamp-2">{selectedDriverAddress || 'Loading address...'}</span>
-                                </div>
-                              </div>
-                              <div className="h-[0.5px] bg-gray-200 w-full"></div>
-                              <div className="p-2.5 pt-1.5 pb-2.5">
-                                <div className="text-[10px] font-bold text-gray-500 mb-1">Services Offered:</div>
-                                <div className="flex flex-col gap-0.5 mb-2">
-                                  {servicesList.slice(0, 3).map((svc, i) => (
-                                    <div key={i} className="flex items-center gap-1.5">
-                                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-[#2E7D32] shrink-0"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                                      <span className="text-[10px] text-gray-800 truncate">{svc}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                                <button onClick={(e) => { markMarkerInteraction(e); makePhoneCall(driver.mobileNumber || driver.phoneNumber, driver); }} className="w-full bg-[#2E7D32] hover:bg-[#256629] text-white rounded-md h-[34px] flex items-center justify-center gap-1.5 cursor-pointer">
-                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-                                  <span className="text-[12px] font-bold">Call a Driver</span>
-                                </button>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                        {/* Downward Triangle */}
-                        <div className="w-0 h-0 border-l-[7px] border-l-transparent border-r-[7px] border-r-transparent border-t-[7px] border-t-white mx-auto -mt-[1px]"></div>
-                      </div>
-                    );
-                  })()}
                 </div>
               </Marker>
             );
@@ -908,9 +823,11 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
 
             {!isLoggedInDriver && (
               <>
-                {/* Bottom Left Status Box */}
+                {/* Bottom Left Status Box — within 20 miles when location known */}
                 <div className="absolute bottom-3 left-3 sm:bottom-10 sm:left-8 z-10 bg-white rounded-lg sm:rounded-xl shadow-lg border border-gray-100 min-w-[132px] sm:min-w-[160px] p-3 sm:p-5">
-                  <p className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 sm:mb-3">Status</p>
+                  <p className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 sm:mb-3">
+                    {userLocation ? 'Within 20 mi' : 'Status'}
+                  </p>
                   <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-2.5">
                     <div className="w-3 h-3 sm:w-3.5 sm:h-3.5 bg-[#22c55e] rounded-full shadow-sm shrink-0"></div>
                     <p className="text-xs sm:text-sm font-semibold text-gray-800 whitespace-nowrap">{liveCount} Available</p>
@@ -921,18 +838,131 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
                   </div>
                 </div>
 
-                {/* Bottom Right Live Count */}
+                {/* Bottom Right Live Count — live drivers within 20 miles */}
                 <div className="absolute bottom-3 right-3 sm:bottom-10 sm:right-8 z-10 max-w-[calc(100%-9.5rem)] sm:max-w-none">
                   <div className="bg-white rounded-full py-2 px-3 sm:py-3.5 sm:px-6 shadow-lg border border-gray-100 flex items-center gap-2 sm:gap-3">
                     <div className="w-3 h-3 sm:w-3.5 sm:h-3.5 bg-[#22c55e] rounded-full border border-green-600/20 shadow-sm shrink-0"></div>
                     <span className="text-[11px] sm:text-sm font-bold text-gray-800 tracking-wide leading-tight">
-                      <span className="sm:hidden">{liveCount} Online Near You</span>
-                      <span className="hidden sm:inline">{liveCount} Drivers Online Near You</span>
+                      {!userLocation ? (
+                        <>
+                          <span className="sm:hidden">Allow location</span>
+                          <span className="hidden sm:inline">Allow location for nearby drivers</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="sm:hidden">{liveCount} Online Near You</span>
+                          <span className="hidden sm:inline">{liveCount} Drivers Online Near You</span>
+                        </>
+                      )}
                     </span>
                   </div>
                 </div>
               </>
             )}
+
+            {/* Centered driver card — always in the middle of the visible map */}
+            {selectedDriver && (() => {
+              const driver = selectedDriver;
+              let servicesList = [];
+              if (driver.services) {
+                try {
+                  servicesList = typeof driver.services === 'string' ? JSON.parse(driver.services) : driver.services;
+                } catch (e) {}
+              }
+              if (!Array.isArray(servicesList) || servicesList.length === 0) {
+                servicesList = ['General Van Services'];
+              }
+              const isDriverLive = isLive(driver);
+              const isDriverMode = !!jwtToken;
+              const displayName = driver.fullName?.split('@')[0] || 'Driver Profile';
+              const profileImgUrl = driver.profileImageUrl ? getCorrectImageUrl(driver.profileImageUrl) : null;
+
+              return (
+                <div
+                  className="absolute inset-0 z-30 flex items-center justify-center p-4 pointer-events-none"
+                  aria-modal="true"
+                  role="dialog"
+                >
+                  <button
+                    type="button"
+                    className="absolute inset-0 bg-black/25 pointer-events-auto cursor-pointer"
+                    aria-label="Close driver card"
+                    onClick={() => setSelectedDriver(null)}
+                  />
+                  <div
+                    className="relative pointer-events-auto w-[min(300px,calc(100vw-2rem))] bg-white rounded-[12px] shadow-[0_8px_28px_rgba(0,0,0,0.28)] overflow-hidden"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="relative p-2.5 pb-1.5 flex items-start gap-2">
+                      <button
+                        onClick={() => setSelectedDriver(null)}
+                        className="absolute top-2.5 right-2.5 w-5 h-5 bg-black/10 rounded-full flex items-center justify-center cursor-pointer hover:bg-black/20"
+                      >
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-black/50"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                      </button>
+                      <div className="w-10 h-10 rounded-full bg-[#2E7D32]/10 flex items-center justify-center shrink-0 overflow-hidden">
+                        {profileImgUrl ? (
+                          <img src={profileImgUrl} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[#2E7D32]"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0 pr-6">
+                        <div className="flex items-center gap-1">
+                          <span className="font-bold text-[13px] text-gray-800 truncate">{displayName}</span>
+                          <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold ${isDriverLive ? 'bg-[#E8F5E9] text-[#2E7D32]' : 'bg-[#EEEEEE] text-gray-700'}`}>
+                            {isDriverLive ? 'Online' : 'Offline'}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-gray-600 font-medium truncate mt-[1px]">
+                          {driver.companyName || 'Independent Driver'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {isDriverMode ? (
+                      <>
+                        <div className="h-[0.5px] bg-gray-200 w-full"></div>
+                        <div className="px-2.5 py-2 flex items-center gap-1.5">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-500"><path d="M5 18H3c-.6 0-1-.4-1-1V7c0-.6.4-1 1-1h10c.6 0 1 .4 1 1v11"/><path d="M14 9h4l4 4v5c0 .6-.4 1-1 1h-2"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg>
+                          <span className="text-[10px] font-bold text-gray-800 truncate">Vehicle: {driver.vehicleType || 'N/A'}</span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="h-[0.5px] bg-gray-200 w-full"></div>
+                        <div className="px-2.5 py-1.5 flex flex-col gap-1">
+                          <button onClick={() => makePhoneCall(driver.mobileNumber || driver.phoneNumber, driver)} className="flex items-center gap-1.5 cursor-pointer hover:bg-gray-50 p-0.5 -ml-0.5 rounded w-full text-left">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-500 shrink-0"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                            <span className="text-[11px] font-bold text-gray-800">{driver.mobileNumber || driver.phoneNumber || 'N/A'}</span>
+                          </button>
+                          <div className="flex items-start gap-1.5 p-0.5 -ml-0.5">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-red-500 shrink-0 mt-0.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                            <span className="text-[10px] text-gray-800 leading-tight line-clamp-2">{selectedDriverAddress || 'Loading address...'}</span>
+                          </div>
+                        </div>
+                        <div className="h-[0.5px] bg-gray-200 w-full"></div>
+                        <div className="p-2.5 pt-1.5 pb-2.5">
+                          <div className="text-[10px] font-bold text-gray-500 mb-1">Services Offered:</div>
+                          <div className="flex flex-col gap-0.5 mb-2">
+                            {servicesList.slice(0, 3).map((svc, i) => (
+                              <div key={i} className="flex items-center gap-1.5">
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-[#2E7D32] shrink-0"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                                <span className="text-[10px] text-gray-800 truncate">{svc}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <button onClick={() => makePhoneCall(driver.mobileNumber || driver.phoneNumber, driver)} className="w-full bg-[#2E7D32] hover:bg-[#256629] text-white rounded-md h-[34px] flex items-center justify-center gap-1.5 cursor-pointer">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                            <span className="text-[12px] font-bold">Call a Driver</span>
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
           </>
         )}
 
