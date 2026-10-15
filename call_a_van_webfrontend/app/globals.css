@@ -20,19 +20,20 @@
   --color-success-green: var(--success-green);
   --color-background-grey: var(--background-grey);
   --color-map-beige: var(--map-beige);
-  --font-sans: Arial, sans-serif;
+  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
 }
 
-/* ─────────────────────────────────────────────────
-   GLOBAL RESETS
-───────────────────────────────────────────────── */
+.font-manrope {
+  font-family: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+}
+
 /* ─────────────────────────────────────────────────
    GLOBAL RESETS
 ───────────────────────────────────────────────── */
 
 html, body {
   min-height: 100%;
-  font-family: Arial, sans-serif;
+  font-family: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
 }
 
 /* ─────────────────────────────────────────────────
@@ -61,10 +62,10 @@ html, body {
 @keyframes radar-pulse {
   0% {
     transform: scale(1);
-    opacity: 1;
+    opacity: 0.9;
   }
   100% {
-    transform: scale(2.5);
+    transform: scale(1.65);
     opacity: 0;
   }
 }
@@ -72,12 +73,12 @@ html, body {
 .radar-ring {
   position: absolute;
   border-radius: 50%;
-  animation: radar-pulse 1.2s ease-out infinite;
+  animation: radar-pulse 1.1s ease-out infinite;
 }
 
 .radar-ring-1 { animation-delay: 0s; }
-.radar-ring-2 { animation-delay: 0.4s; }
-.radar-ring-3 { animation-delay: 0.8s; }
+.radar-ring-2 { animation-delay: 0.45s; }
+.radar-ring-3 { animation-delay: 0.9s; }
 
 /* ─────────────────────────────────────────────────
    SHIMMER ANIMATION — Map skeleton loader

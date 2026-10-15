@@ -1,0 +1,23 @@
+{
+  "name": "CallAVAN",
+  "short_name": "CallAVAN",
+  "description": "Need a van fast? See nearby drivers live and call direct.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b51c1",
+  "theme_color": "#0b51c1",
+  "lang": "en-GB",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "32x32",
+      "type": "image/png"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "256x256",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

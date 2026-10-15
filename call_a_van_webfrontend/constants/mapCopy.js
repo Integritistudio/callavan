@@ -2,14 +2,14 @@
 
 /** Shown when browsing as a customer (driver not logged in). */
 export const CUSTOMER_MAP_HEADER = {
-  title: 'See Who is Live Near You',
-  subtitle: 'Local drivers. Real-time availability. Call directly',
+  title: 'Need Something Moved?',
+  subtitle: 'Find a Local Van. Call Direct.',
 };
 
 /** Shown when a driver is logged in and live. */
 export const DRIVER_MAP_HEADER_LIVE = {
-  title: 'You are Now Live and Visible to the users',
-  subtitle: 'You are sharing location and are live for users',
+  title: "You're LIVE and Visible",
+  subtitle: 'Your location is being shared with nearby customers.',
 };
 
 /** Shown when a driver is logged in but offline. */

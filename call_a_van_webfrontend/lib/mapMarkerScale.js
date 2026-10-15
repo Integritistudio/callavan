@@ -1,18 +1,18 @@
-/** Shared van marker sizing — offline baseline; live markers render larger. */
-export const VAN_ICON_SIZE = 58;
-export const VAN_SVG_SIZE = 28;
-/** Live vans are ~18% larger than offline grey vans */
-export const LIVE_MARKER_SCALE_BOOST = 1.18;
+/** Shared van marker sizing — offline baseline; live markers slightly larger. */
+export const VAN_ICON_SIZE = 48;
+export const VAN_SVG_SIZE = 24;
+/** Live vans are just a little bigger than offline grey vans */
+export const LIVE_MARKER_SCALE_BOOST = 1.08;
 export const VAN_BORDER = '2.5px solid white';
 export const VAN_SHADOW = '0 3px 8px rgba(0,0,0,0.3)';
 /**
  * Layout/hitbox size for markers — match the visible icon.
  * Radar rings overflow visually and must stay pointer-events: none.
  */
-export const LIVE_MARKER_CONTAINER = Math.round(VAN_ICON_SIZE * LIVE_MARKER_SCALE_BOOST);
+export const LIVE_MARKER_CONTAINER = VAN_ICON_SIZE;
 export const OFFLINE_MARKER_CONTAINER = VAN_ICON_SIZE;
-/** Max visual reach of pulsing radar rings (2.5× icon). */
-export const RADAR_RING_MAX_SCALE = 2.5;
+/** Max visual reach of pulsing radar rings. */
+export const RADAR_RING_MAX_SCALE = 1.65;
 
 /** Marker stacking within Mapbox — selected popup must sit above neighbors. */
 export const MARKER_Z_DEFAULT = 1;
@@ -62,3 +62,10 @@ export function distanceMiles(lat1, lng1, lat2, lng2) {
 }
 
 export const NEARBY_RADIUS_MILES = 20;
+
+/**
+ * Zoom level when a driver goes live / map centers on them.
+ * Mapbox camera max is 22 — values above that are clamped and look like "no change".
+ */
+export const DRIVER_LIVE_ZOOM = 16;
+export const MAP_MAX_ZOOM = 22;

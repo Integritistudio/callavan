@@ -1244,7 +1244,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       }
       return 'Join the Driver Network';
     }
-    return 'See Who is Live Near You';
+    return 'Need Something Moved?';
   }
 
   String _getHeaderSubtitle() {
@@ -1256,7 +1256,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       }
       return 'Log in to securely broadcast your live location.';
     }
-    return 'Local drivers. Real-time availability. Call directly.';
+    return 'Find a Local Van. Call Direct.';
   }
 
   @override

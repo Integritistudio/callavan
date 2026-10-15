@@ -75,6 +75,17 @@ io.on('connection', (socket) => {
         return;
       }
 
+      // Only accept GPS updates while the driver is already live.
+      // Prevents a late watchPosition/getCurrentPosition callback from
+      // bringing someone back online after they ended their session.
+      const liveCheck = await db.query(
+        'SELECT is_live FROM driver_locations WHERE driver_id = $1',
+        [driverId]
+      );
+      if (!liveCheck.rows[0]?.is_live) {
+        return;
+      }
+
       // Cancel any pending Grace Period timeout if the driver resumed updating
       if (disconnectTimers[driverId]) {
         clearTimeout(disconnectTimers[driverId]);
@@ -85,19 +96,21 @@ io.on('connection', (socket) => {
       // Store driverId in this socket session so we can auto-cleanup on disconnect
       socket.driverId = driverId;
 
-      // Upsert position to decoupled tracking table, setting both is_live and is_logged_in to true
+      // Update position for an already-live driver (do not force is_live flips here)
       const upsertQuery = `
-        INSERT INTO driver_locations (driver_id, latitude, longitude, is_live, is_logged_in, last_active)
-        VALUES ($1, $2, $3, true, true, NOW())
-        ON CONFLICT (driver_id) 
-        DO UPDATE SET 
-          latitude = EXCLUDED.latitude, 
-          longitude = EXCLUDED.longitude, 
-          is_live = true, 
+        UPDATE driver_locations
+        SET
+          latitude = $2,
+          longitude = $3,
           is_logged_in = true,
-          last_active = NOW();
+          last_active = NOW()
+        WHERE driver_id = $1 AND is_live = true
+        RETURNING is_live;
       `;
-      await db.query(upsertQuery, [driverId, latitude, longitude]);
+      const updated = await db.query(upsertQuery, [driverId, latitude, longitude]);
+      if (!updated.rows[0]?.is_live) {
+        return;
+      }
 
       // Broadcast coordinate change to all other connected client sockets instantly
       socket.broadcast.emit('driver_location_changed', {

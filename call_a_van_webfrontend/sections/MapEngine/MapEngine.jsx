@@ -39,6 +39,8 @@ import {
   MARKER_Z_OWN,
   MARKER_Z_USER,
   VAN_ICON_SIZE,
+  DRIVER_LIVE_ZOOM,
+  MAP_MAX_ZOOM,
   distanceMiles,
   getDriverMarkerZIndex,
   getVanMarkerScale,
@@ -96,6 +98,8 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
   const prevLocationStatusRef = useRef('unknown');
   /** Prevents map onClick from clearing selection right after a marker tap. */
   const suppressMapClickRef = useRef(false);
+  /** Keeps GPS follow in sync without stale closures. */
+  const isDriverLiveRef = useRef(false);
 
   useEffect(() => {
     loadSession();
@@ -161,16 +165,35 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
 
   function flyToLocation(lat, lng, zoom = 14) {
     const map = mapRef.current?.getMap?.() ?? mapRef.current;
+    const mapMax = typeof map?.getMaxZoom === 'function' ? map.getMaxZoom() : MAP_MAX_ZOOM;
+    const targetZoom = Math.min(Math.max(Number(zoom) || 14, 0), mapMax, MAP_MAX_ZOOM);
+
+    // Update controlled React state first so the zoom always sticks.
+    setViewState((v) => ({ ...v, longitude: lng, latitude: lat, zoom: targetZoom }));
+
     if (map?.flyTo) {
-      map.flyTo({ center: [lng, lat], zoom, duration: 700, essential: true });
+      map.flyTo({ center: [lng, lat], zoom: targetZoom, duration: 700, essential: true });
+    } else if (map?.jumpTo) {
+      map.jumpTo({ center: [lng, lat], zoom: targetZoom });
     }
-    setViewState((v) => ({ ...v, longitude: lng, latitude: lat, zoom }));
+  }
+
+  /** Smooth pan that keeps zoom — used so the map follows a live driver. */
+  function followDriverLocation(lat, lng) {
+    const map = mapRef.current?.getMap?.() ?? mapRef.current;
+    if (map?.easeTo) {
+      map.easeTo({ center: [lng, lat], duration: 450, essential: true });
+    } else if (map?.panTo) {
+      map.panTo([lng, lat], { duration: 450 });
+    }
+    setViewState((v) => ({ ...v, longitude: lng, latitude: lat }));
   }
 
   function forceDriverOffline(driver) {
-    stopGPS();
+    isDriverLiveRef.current = false;
     setIsDriverLive(false);
     localStorage.setItem('is_driver_live', 'false');
+    stopGPS();
     if (socketRef.current && driver?.id) {
       socketRef.current.emit('go_offline', { driverId: driver.id });
     }
@@ -193,10 +216,13 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
     setDriverLocation({ lat, lng });
     setDriverLocationBannerDismissed(false);
     if (shouldFly) {
-      flyToLocation(lat, lng, 14.5);
+      flyToLocation(lat, lng, DRIVER_LIVE_ZOOM);
+    } else if (isDriverLiveRef.current) {
+      followDriverLocation(lat, lng);
     }
-    const socket = socketRef.current || getSocket();
-    if (driver?.id) {
+    // Only stream coords while live — blocks stale GPS after End Session.
+    if (isDriverLiveRef.current && driver?.id) {
+      const socket = socketRef.current || getSocket();
       socket.emit('update_location', { driverId: driver.id, latitude: lat, longitude: lng });
     }
     localStorage.setItem('last_driver_lat', lat);
@@ -322,12 +348,13 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
         await new Promise((resolve, reject) => {
           promptForLocation({
             onSuccess: (lat, lng) => {
+              isDriverLiveRef.current = true;
+              setIsDriverLive(true);
+              localStorage.setItem('is_driver_live', 'true');
               if (currentDriver?.id) {
                 socket.emit('go_live', { driverId: currentDriver.id });
                 updateDriverPosition(lat, lng, currentDriver, true);
               }
-              setIsDriverLive(true);
-              localStorage.setItem('is_driver_live', 'true');
               trackEvent('Go live', {
                 userType: 'driver',
                 userEmail: currentDriver?.email || '',
@@ -353,12 +380,19 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
       setGlobalLoading(true);
       setGlobalLoadingMessage('Going offline...');
       try {
+        // Flip live flags first so any in-flight GPS callback cannot re-broadcast.
+        isDriverLiveRef.current = false;
+        setIsDriverLive(false);
+        localStorage.setItem('is_driver_live', 'false');
         stopGPS();
         if (socketRef.current && currentDriver?.id) {
           socketRef.current.emit('go_offline', { driverId: currentDriver.id });
         }
-        setIsDriverLive(false);
-        localStorage.setItem('is_driver_live', 'false');
+        trackEvent('End session', {
+          userType: 'driver',
+          userEmail: currentDriver?.email || '',
+          driverEmail: currentDriver?.email || '',
+        });
         showNotification('You went Offline.');
       } finally {
         setGlobalLoading(false);
@@ -380,16 +414,29 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
 
   function startGPS(driver, token) {
     stopGPS();
+    isDriverLiveRef.current = true;
 
     navigator.geolocation.getCurrentPosition(
-      (pos) => updateDriverPosition(pos.coords.latitude, pos.coords.longitude, driver, true),
-      (err) => handleGpsError(err, driver),
+      (pos) => {
+        if (!isDriverLiveRef.current) return;
+        updateDriverPosition(pos.coords.latitude, pos.coords.longitude, driver, true);
+      },
+      (err) => {
+        if (!isDriverLiveRef.current) return;
+        handleGpsError(err, driver);
+      },
       { enableHighAccuracy: false, maximumAge: 600000, timeout: 5000 }
     );
 
     gpsWatchRef.current = navigator.geolocation.watchPosition(
-      (pos) => updateDriverPosition(pos.coords.latitude, pos.coords.longitude, driver, false),
-      (err) => handleGpsError(err, driver),
+      (pos) => {
+        if (!isDriverLiveRef.current) return;
+        updateDriverPosition(pos.coords.latitude, pos.coords.longitude, driver, false);
+      },
+      (err) => {
+        if (!isDriverLiveRef.current) return;
+        handleGpsError(err, driver);
+      },
       { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 }
     );
   }
@@ -594,6 +641,7 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
   const liveCount = nearbyDrivers.filter((d) => isLive(d)).length;
   const offlineCount = nearbyDrivers.filter((d) => !isLive(d)).length;
   const effectiveDriverLive = isDriverLive && hasOwnLocation;
+  isDriverLiveRef.current = effectiveDriverLive;
   const driverNeedsLocation = isLoggedInDriver && !hasOwnLocation && locationStatus !== 'granted';
   const showDriverLocationBanner = driverNeedsLocation && !driverLocationBannerDismissed;
   const mapHeaderCopy = isLoggedInDriver
@@ -631,23 +679,23 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
   }, [showDriverLocationBanner, hasOwnLocation, isContentPage]);
 
   return (
-    <div className={`flex flex-col w-full overflow-x-hidden font-sans ${isContentPage ? 'min-h-screen' : 'h-[100dvh] sm:h-screen overflow-hidden'}`}>
+    <div className={`flex flex-col w-full max-w-[100vw] overflow-x-hidden font-sans ${isContentPage ? 'min-h-screen' : 'h-[100dvh] max-h-[100dvh] sm:h-screen sm:max-h-screen overflow-hidden'}`}>
       
-      {/* ── HEADER (Solid Blue exact match) ── */}
-      <header className="flex-shrink-0 w-full flex flex-col bg-[#0b51c1] px-4 py-4 min-h-[148px] sm:px-8 sm:py-5 sm:min-h-[168px] md:px-10 md:min-h-[180px]">
+      {/* ── HEADER (fixed shell; map scrolls underneath) ── */}
+      <header className="flex-shrink-0 w-full max-w-full overflow-hidden flex flex-col bg-[#0b51c1] px-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 box-border h-[calc(122px+env(safe-area-inset-top,0px))] sm:px-8 sm:pt-5 sm:pb-4 sm:h-[138px] md:px-10 md:h-[148px]">
         {/* Top Nav Line */}
-        <div className="flex justify-between items-center w-full gap-3">
+        <div className="flex justify-between items-center w-full min-w-0 gap-2 sm:gap-3">
           {/* Left Logo */}
-          <a href="/" className="inline-block cursor-pointer shrink-0">
+          <a href="/" className="inline-block cursor-pointer shrink-0 min-w-0">
             <img 
               src="https://cdn.prod.website-files.com/699f24e36021db019f687184/69d5648b03176e73b702b52f_callvan1.png" 
               alt="Call-A-Van.live" 
-              className="h-8 sm:h-9 md:h-10 object-contain hover:opacity-90 transition-opacity block"
+              className="h-8 sm:h-9 md:h-10 max-w-[140px] sm:max-w-none object-contain object-left hover:opacity-90 transition-opacity block"
             />
           </a>
 
           {/* Right Actions */}
-          <div className="flex items-center gap-2.5 sm:gap-4 md:gap-6 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-4 md:gap-6 shrink-0 min-w-0">
             {jwtToken ? (
               <>
                 <button onClick={() => {
@@ -657,42 +705,65 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
                     driverEmail: loggedInDriver?.email || '',
                   });
                   setShowProfile(true);
-                }} className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-white/50 bg-white/10 flex items-center justify-center text-white hover:bg-white/30 transition-all cursor-pointer shadow-sm">
+                }} className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-white/50 bg-white/10 flex items-center justify-center text-white hover:bg-white/30 transition-all cursor-pointer shadow-sm shrink-0">
                   {profileUrl ? <img src={profileUrl} alt="profile" className="w-full h-full object-cover rounded-full" /> : "👤"}
                 </button>
                 <button
                   onClick={handleLogout}
-                  className="border border-white/40 text-white hover:bg-white/20 transition-all cursor-pointer shadow-sm font-medium bg-white/10 px-3 py-1.5 rounded-md text-xs sm:px-5 sm:py-2 sm:rounded-[6px] sm:text-[15px] whitespace-nowrap"
+                  className="border border-white/40 text-white hover:bg-white/20 transition-all cursor-pointer shadow-sm font-medium bg-white/10 px-2.5 py-1.5 rounded-md text-xs sm:px-5 sm:py-2 sm:rounded-[6px] sm:text-[15px] whitespace-nowrap shrink-0"
                 >
                   Logout
                 </button>
               </>
             ) : (
-              <button onClick={() => { trackEvent('Login clicked', { userType: 'guest' }); setShowLogin(true); }} className="border border-white/40 text-white hover:bg-white/20 transition-all cursor-pointer shadow-sm font-medium bg-white/10 px-3 py-1.5 rounded-md text-xs sm:px-6 sm:py-2 sm:rounded-[6px] sm:text-[15px] whitespace-nowrap">
+              <button onClick={() => { trackEvent('Login clicked', { userType: 'guest' }); setShowLogin(true); }} className="border border-white/40 text-white hover:bg-white/20 transition-all cursor-pointer shadow-sm font-medium bg-white/10 px-2.5 py-1.5 rounded-md text-xs sm:px-6 sm:py-2 sm:rounded-[6px] sm:text-[15px] whitespace-nowrap shrink-0">
                 Driver Login
               </button>
             )}
-            <button onClick={() => setShowHamburger(true)} className="text-white hover:opacity-75 transition-opacity cursor-pointer p-0.5">
+            <button onClick={() => setShowHamburger(true)} className="text-white hover:opacity-75 transition-opacity cursor-pointer p-0.5 shrink-0">
               <svg className="w-7 h-7 sm:w-8 sm:h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
             </button>
           </div>
         </div>
 
         {/* Center Title Section */}
-        <div className="flex-1 flex flex-col items-center justify-end text-center mt-3 sm:mt-4 px-2 sm:px-4">
-          <h1 className="text-white font-bold tracking-tight text-[22px] leading-tight sm:text-[28px] md:text-[34px] md:leading-[1.2] max-w-[20rem] sm:max-w-xl md:max-w-2xl">{mapHeaderCopy.title}</h1>
-          <p className="text-white font-normal mt-1.5 sm:mt-2 text-[13px] sm:text-sm md:text-[15px] max-w-[18rem] sm:max-w-md md:max-w-xl leading-snug">{mapHeaderCopy.subtitle}</p>
+        <div className="flex-1 flex flex-col items-center justify-end text-center min-w-0 w-full max-w-full overflow-hidden px-1 sm:px-4">
+          <h1
+            className={`font-manrope font-semibold text-white text-center tracking-tight leading-tight max-w-full ${
+              isLoggedInDriver
+                ? 'text-[clamp(1.05rem,4.6vw,2rem)] line-clamp-2 break-words'
+                : 'text-[clamp(1.125rem,5.2vw,2.125rem)] whitespace-nowrap'
+            }`}
+          >
+            {effectiveDriverLive ? (
+              <>
+                You&apos;re <span className="text-[#1bb54f]">LIVE</span> and Visible
+              </>
+            ) : (
+              mapHeaderCopy.title
+            )}
+          </h1>
+          <p
+            className={`font-manrope font-semibold text-[#1bb54f] text-center mt-1 sm:mt-1.5 leading-snug max-w-full ${
+              isLoggedInDriver
+                ? 'text-[clamp(0.75rem,3.2vw,0.95rem)] line-clamp-2 break-words'
+                : 'text-[clamp(0.8125rem,3.6vw,1rem)] whitespace-nowrap'
+            }`}
+          >
+            {mapHeaderCopy.subtitle}
+          </p>
         </div>
       </header>
 
-      {/* ── MAP AREA ── */}
-      <main className="flex-1 relative bg-[#F0EEE9] min-h-0 w-full overflow-hidden">
+      {/* ── MAP AREA (only this region pans/zooms) ── */}
+      <main className="flex-1 relative bg-[#F0EEE9] min-h-0 w-full max-w-full overflow-hidden overscroll-none">
         <div className="absolute inset-0 z-0 w-full h-full">
           <Map
             ref={mapRef}
             mapboxAccessToken={MAPBOX_TOKEN}
             mapStyle={MAP_STYLE}
             {...viewState}
+            maxZoom={MAP_MAX_ZOOM}
             onMove={(e) => setViewState(e.viewState)}
             onLoad={() => mapRef.current?.getMap?.()?.resize()}
             onClick={handleMapClick}
@@ -808,7 +879,7 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
             {!isLoggedInDriver && (
               <>
                 {/* Bottom Left Status Box — within 20 miles when location known */}
-                <div className="absolute bottom-3 left-3 sm:bottom-10 sm:left-8 z-10 bg-white rounded-lg sm:rounded-xl shadow-lg border border-gray-100 min-w-[132px] sm:min-w-[160px] p-3 sm:p-5">
+                <div className="hidden absolute bottom-3 left-3 sm:bottom-10 sm:left-8 z-10 bg-white rounded-lg sm:rounded-xl shadow-lg border border-gray-100 min-w-[132px] sm:min-w-[160px] p-3 sm:p-5">
                   <p className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 sm:mb-3">
                     {userLocation ? 'Within 20 mi' : 'Status'}
                   </p>
@@ -823,7 +894,7 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
                 </div>
 
                 {/* Bottom Right Live Count — live drivers within 20 miles */}
-                <div className="absolute bottom-3 right-3 sm:bottom-10 sm:right-8 z-10 max-w-[calc(100%-9.5rem)] sm:max-w-none">
+                <div className="hidden absolute bottom-3 right-3 sm:bottom-10 sm:right-8 z-10 max-w-[calc(100%-9.5rem)] sm:max-w-none">
                   <div className="bg-white rounded-full py-2 px-3 sm:py-3.5 sm:px-6 shadow-lg border border-gray-100 flex items-center gap-2 sm:gap-3">
                     <div className="w-3 h-3 sm:w-3.5 sm:h-3.5 bg-[#22c55e] rounded-full border border-green-600/20 shadow-sm shrink-0"></div>
                     <span className="text-[11px] sm:text-sm font-bold text-gray-800 tracking-wide leading-tight">
@@ -936,6 +1007,13 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
                             <span className="text-[12px] font-bold">Call a Driver</span>
                           </button>
+                          <button
+                            type="button"
+                            onClick={() => setViewingDriverProfile(driver)}
+                            className="w-full mt-1.5 border border-gray-200 hover:bg-gray-50 text-gray-800 rounded-md h-[34px] flex items-center justify-center cursor-pointer"
+                          >
+                            <span className="text-[12px] font-bold">View More</span>
+                          </button>
                         </div>
                       </>
                     )}
@@ -992,20 +1070,15 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
 
       {/* ── FOOTER BAR ── */}
       {!isContentPage && (
-      <footer className="flex-shrink-0 w-full flex flex-col sm:flex-row justify-center items-stretch sm:items-center gap-2.5 sm:gap-6 bg-[#0b51c1] px-4 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-2.5">
+      <footer className="flex-shrink-0 w-full max-w-full overflow-hidden flex flex-col sm:flex-row justify-center items-stretch sm:items-center gap-2.5 sm:gap-6 bg-[#0b51c1] px-4 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-2.5">
         {!jwtToken ? (
-          <>
-            <button onClick={() => { trackEvent('Become driver', { userType: 'guest' }); setShowSignup(true); }} className="w-full sm:w-auto text-white font-bold transition-all shadow-md hover:shadow-lg cursor-pointer transform hover:-translate-y-0.5 bg-[#144cb8] py-2.5 px-6 rounded-lg text-sm sm:py-3 sm:px-9 sm:rounded-[8px] sm:text-base">
-              Become a Driver
-            </button>
-            <button onClick={() => { trackEvent('Login clicked', { userType: 'guest' }); setShowLogin(true); }} className="w-full sm:w-auto text-white font-bold transition-all shadow-md hover:shadow-lg cursor-pointer transform hover:-translate-y-0.5 bg-[#1bb54f] py-2.5 px-6 rounded-lg text-sm sm:py-3 sm:px-11 sm:rounded-[8px] sm:text-base">
-              Go Live
-            </button>
-          </>
+          <button onClick={() => { trackEvent('Become driver', { userType: 'guest' }); setShowSignup(true); }} className="w-full sm:w-auto max-w-full text-white font-bold transition-all shadow-md hover:shadow-lg cursor-pointer bg-[#1bb54f] hover:bg-[#16a34a] py-2.5 px-6 rounded-lg text-sm sm:py-3 sm:px-9 sm:rounded-[8px] sm:text-base">
+            Become a Driver
+          </button>
         ) : (
           <button
             onClick={() => handleToggleLive(!effectiveDriverLive)}
-            className={`w-full sm:w-auto text-white font-bold transition-all shadow-md hover:shadow-lg cursor-pointer transform hover:-translate-y-0.5 py-2.5 px-6 rounded-lg text-sm sm:py-3 sm:px-12 sm:rounded-[8px] sm:text-base ${
+            className={`w-full sm:w-auto max-w-full text-white font-bold transition-all shadow-md hover:shadow-lg cursor-pointer py-2.5 px-6 rounded-lg text-sm sm:py-3 sm:px-12 sm:rounded-[8px] sm:text-base ${
               effectiveDriverLive ? 'bg-red-500 hover:bg-red-600' : 'bg-[#1bb54f] hover:bg-[#16a34a]'
             }`}
           >
@@ -1063,7 +1136,11 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
         <ProfileModal driver={loggedInDriver} token={jwtToken} onClose={() => setShowProfile(false)} onLogout={handleLogout} onProfileUpdated={handleProfileUpdated} />
       )}
       {viewingDriverProfile && (
-        <DriverProfileDetailsModal driver={viewingDriverProfile} onClose={() => setViewingDriverProfile(null)} />
+        <DriverProfileDetailsModal
+          driver={viewingDriverProfile}
+          onClose={() => setViewingDriverProfile(null)}
+          onCall={(number, driver) => makePhoneCall(number, driver || viewingDriverProfile)}
+        />
       )}
 
       {/* HAMBURGER MENU MODAL */}
