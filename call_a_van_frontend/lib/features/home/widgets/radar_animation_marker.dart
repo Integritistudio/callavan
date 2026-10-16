@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/map_marker_scale.dart';
 
 class LiveRadarMarker extends StatefulWidget {
   final bool isOrange;
@@ -29,8 +30,12 @@ class _LiveRadarMarkerState extends State<LiveRadarMarker>
 
   @override
   Widget build(BuildContext context) {
-    final waveColor = widget.isOrange ? Colors.orangeAccent.withOpacity(0.65) : const Color(0xFF16A34A);
-    final iconColor = widget.isOrange ? Colors.orange.shade400 : const Color(0xFF1AB451);
+    final waveColor = widget.isOrange
+        ? Colors.orangeAccent.withOpacity(0.65)
+        : const Color(0xFF16A34A);
+    final iconColor =
+        widget.isOrange ? Colors.orange.shade400 : const Color(0xFF1AB451);
+    final size = liveVanIconSize;
 
     return AnimatedBuilder(
       animation: _controller,
@@ -41,55 +46,60 @@ class _LiveRadarMarkerState extends State<LiveRadarMarker>
           children: [
             // Expanding ring 1
             Transform.scale(
-              scale: 1.0 + (progress * 2.0), // Sweeps slightly wider
+              scale: 1.0 + (progress * 2.0),
               child: Opacity(
                 opacity: (1.0 - progress).clamp(0.0, 1.0),
                 child: Container(
-                  width: 38,
-                  height: 38,
+                  width: size,
+                  height: size,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: waveColor.withOpacity(0.9), // Higher border opacity
+                      color: waveColor.withOpacity(0.9),
                       width: 2.0,
                     ),
-                    color: waveColor.withOpacity(0.26), // Saturated fill opacity
+                    color: waveColor.withOpacity(0.26),
                   ),
                 ),
               ),
             ),
-            // Expanding ring 2 (delayed by 0.5)
+            // Expanding ring 2 (delayed)
             Transform.scale(
-              scale: 1.0 + (((progress + 0.5) % 1.0) * 2.0), // Sweeps slightly wider
+              scale: 1.0 + (((progress + 0.5) % 1.0) * 2.0),
               child: Opacity(
                 opacity: (1.0 - ((progress + 0.5) % 1.0)).clamp(0.0, 1.0),
                 child: Container(
-                  width: 38,
-                  height: 38,
+                  width: size,
+                  height: size,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: waveColor.withOpacity(0.65), // Higher border opacity
+                      color: waveColor.withOpacity(0.65),
                       width: 1.5,
                     ),
-                    color: waveColor.withOpacity(0.18), // Saturated fill opacity
+                    color: waveColor.withOpacity(0.18),
                   ),
                 ),
               ),
             ),
-            // White circle background with thick green/orange border and matching van icon
+            // Core van circle — ~15% larger than offline grey vans
             Container(
-              width: 38,
-              height: 38,
+              width: size,
+              height: size,
               decoration: BoxDecoration(
                 color: Colors.white,
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: iconColor, // Thick border matching the van color
+                  color: iconColor,
                   width: 2.0,
                 ),
-                boxShadow: const [
+                boxShadow: [
                   BoxShadow(
+                    color: iconColor.withOpacity(0.35),
+                    blurRadius: 8,
+                    spreadRadius: 1,
+                  ),
+                  const BoxShadow(
                     color: Colors.black26,
                     blurRadius: 4,
                     offset: Offset(0, 1),
@@ -100,7 +110,7 @@ class _LiveRadarMarkerState extends State<LiveRadarMarker>
               child: Icon(
                 Icons.local_shipping,
                 color: iconColor,
-                size: 22, // Adjusted size to fit beautifully inside the 2.5px border
+                size: liveVanSvgSize,
               ),
             ),
           ],

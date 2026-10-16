@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import '../../../core/map_marker_scale.dart';
 import 'radar_animation_marker.dart';
 
 class DriverMarker extends Marker {
@@ -9,8 +10,8 @@ class DriverMarker extends Marker {
     required VoidCallback onTap,
     bool isOrange = false,
   }) : super(
-          width: 90.0, // Increased marker bounding size to prevent wave clipping
-          height: 90.0, // Increased marker bounding size to prevent wave clipping
+          width: 100.0, // Room for live radar rings + 15% larger live icon
+          height: 100.0,
           point: LatLng(
             double.tryParse(driver['latitude']?.toString() ?? '') ?? 0.0,
             double.tryParse(driver['longitude']?.toString() ?? '') ?? 0.0,
@@ -23,8 +24,8 @@ class DriverMarker extends Marker {
                 ? LiveRadarMarker(isOrange: isOrange)
                 : Center(
                     child: Container(
-                      width: 38, // Increased offline circle size
-                      height: 38, // Increased offline circle size
+                      width: offlineVanIconSize,
+                      height: offlineVanIconSize,
                       decoration: BoxDecoration(
                         color: Colors.grey.shade500,
                         shape: BoxShape.circle,
@@ -39,7 +40,7 @@ class DriverMarker extends Marker {
                       child: const Icon(
                         Icons.airport_shuttle_rounded,
                         color: Colors.white,
-                        size: 24, // Increased offline icon size
+                        size: offlineVanSvgSize,
                       ),
                     ),
                   ),

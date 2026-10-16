@@ -1,6 +1,6 @@
 // components/ui/LiveDriverMarker.jsx
 // Mirrors Flutter's RadarAnimationMarker — live green/orange pulsing van circle
-// Circle size matches offline markers; live is only slightly larger via zoom scale.
+// Live vans are ~15% larger than offline (LIVE_MARKER_SCALE_BOOST) + soft green glow.
 
 import {
   getVanMarkerScale,
@@ -47,7 +47,7 @@ export default function LiveDriverMarker({ isOrange = false, zoom = 14, onClick 
           height: VAN_ICON_SIZE,
           backgroundColor: color,
           border: VAN_BORDER,
-          boxShadow: VAN_SHADOW,
+          boxShadow: `${VAN_SHADOW}, 0 0 12px 2px ${isOrange ? 'rgba(249, 115, 22, 0.45)' : 'rgba(34, 197, 94, 0.45)'}`,
         }}
       >
         <svg width={VAN_SVG_SIZE} height={VAN_SVG_SIZE} viewBox="0 0 24 24" fill="white">
