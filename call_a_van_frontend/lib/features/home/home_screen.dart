@@ -17,6 +17,7 @@ import 'package:shimmer/shimmer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../core/app_colors.dart';
 import 'welcome_screen.dart';
 import 'widgets/radar_animation_marker.dart';
@@ -25,11 +26,12 @@ import 'widgets/driver_signup_modal.dart';
 import 'widgets/driver_profile_dialog.dart';
 import 'widgets/clippers.dart';
 import 'widgets/selected_driver_popup.dart';
+import 'widgets/driver_public_details_modal.dart';
 import 'widgets/driver_marker.dart';
 import 'widgets/user_location_marker.dart';
 import 'widgets/user_address_tooltip.dart';
 import 'widgets/dialogs.dart';
-import 'widgets/status_capsule.dart';
+// import 'widgets/status_capsule.dart'; // restore with StatusCapsule overlay below
 import 'widgets/driver_bottom_bar.dart';
 
 class CachedTileProvider extends TileProvider {
@@ -566,6 +568,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         });
       },
       onCall: _makePhoneCall,
+      onViewMore: () {
+        final driver = _selectedDriver;
+        if (driver == null) return;
+        DriverPublicDetailsModal.show(
+          context,
+          driver: Map<String, dynamic>.from(driver),
+          onCall: _makePhoneCall,
+          getCorrectImageUrl: _getCorrectImageUrl,
+        );
+      },
       getCorrectImageUrl: _getCorrectImageUrl,
     );
   }
@@ -1237,10 +1249,24 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
+  bool get _driverHasOwnLocation => _driverCurrentLocation != null;
+
+  bool get _isDriverEffectivelyLive =>
+      widget.isDriverMode &&
+      _loggedInDriver != null &&
+      _isDriverLive &&
+      _driverHasOwnLocation;
+
   String _getHeaderTitle() {
     if (widget.isDriverMode) {
       if (_loggedInDriver != null) {
-        return _isDriverLive ? 'You are Live on the Map' : 'You are Currently Offline';
+        if (!_driverHasOwnLocation) {
+          return 'You need to allow location to be visible on map';
+        }
+        if (_isDriverLive) {
+          return "You're LIVE and Visible";
+        }
+        return 'You are logged in';
       }
       return 'Join the Driver Network';
     }
@@ -1250,13 +1276,101 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   String _getHeaderSubtitle() {
     if (widget.isDriverMode) {
       if (_loggedInDriver != null) {
-        return _isDriverLive
-            ? 'Customers and other drivers can see you.'
-            : 'Turn on your location to become visible.';
+        if (!_driverHasOwnLocation) {
+          return 'You not visible to users';
+        }
+        if (_isDriverLive) {
+          return 'Your location is being shared with nearby customers.';
+        }
+        return 'Tap Go Live Now to become visible to users';
       }
       return 'Log in to securely broadcast your live location.';
     }
     return 'Find a Local Van. Call Direct.';
+  }
+
+  /// Map page blue header — matches Next.js MapEngine header copy + typography.
+  Widget _buildMapStatusHeader(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    final isDriverHeader = widget.isDriverMode && _loggedInDriver != null;
+    final titleSize = isDriverHeader
+        ? (width * 0.046).clamp(15.0, 22.0)
+        : (width * 0.052).clamp(16.0, 28.0);
+    final subtitleSize = isDriverHeader
+        ? (width * 0.032).clamp(11.0, 14.0)
+        : (width * 0.036).clamp(12.0, 16.0);
+    final subtitleWeight =
+        _isDriverEffectivelyLive ? FontWeight.w400 : FontWeight.w600;
+
+    final titleStyle = GoogleFonts.manrope(
+      color: Colors.white,
+      fontSize: titleSize,
+      fontWeight: FontWeight.w600,
+      height: 1.2,
+      letterSpacing: -0.3,
+    );
+
+    return Container(
+      width: double.infinity,
+      color: AppColors.primaryBlue,
+      padding: EdgeInsets.fromLTRB(
+        12,
+        isDriverHeader ? 10 : 14,
+        12,
+        isDriverHeader ? 12 : 16,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: double.infinity,
+            child: _isDriverEffectivelyLive
+                ? Text.rich(
+                    TextSpan(
+                      style: titleStyle,
+                      children: [
+                        const TextSpan(text: "You're "),
+                        TextSpan(
+                          text: 'LIVE',
+                          style: titleStyle.copyWith(color: AppColors.brandGreen),
+                        ),
+                        const TextSpan(text: ' and Visible'),
+                      ],
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    softWrap: true,
+                    overflow: TextOverflow.ellipsis,
+                  )
+                : Text(
+                    _getHeaderTitle(),
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    softWrap: true,
+                    overflow: TextOverflow.ellipsis,
+                    style: titleStyle,
+                  ),
+          ),
+          SizedBox(height: isDriverHeader ? 4 : 6),
+          SizedBox(
+            width: double.infinity,
+            child: Text(
+              _getHeaderSubtitle(),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              softWrap: true,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.manrope(
+                color: AppColors.brandGreen,
+                fontSize: subtitleSize,
+                fontWeight: subtitleWeight,
+                height: 1.3,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -1416,28 +1530,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ),
         body: Column(
           children: [
-            Container(
-              width: double.infinity,
-              color: AppColors.primaryBlue,
-              padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
-              child: Column(
-                children: [
-                  Text(
-                    _getHeaderTitle(),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    _getHeaderSubtitle(),
-                    style: const TextStyle(color: Colors.white70, fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
+            _buildMapStatusHeader(context),
             Expanded(
               child: Stack(
                 children: [
@@ -1706,23 +1799,25 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     ),
                   ),
 
-                  // --- BOTTOM-CENTER DYNAMIC CAPSULE PILL OVERLAY ---
-                  if (_selectedDriver == null)
-                    Positioned(
-                      bottom:
-                          (widget.isDriverMode || _userCurrentLocation == null)
-                          ? 90
-                          : 16,
-                      left: 0,
-                      right: 0,
-                      child: Center(
-                        child: StatusCapsule(
-                          isDriverMode: widget.isDriverMode,
-                          isDriverLive: _isDriverLive,
-                          onlineDriversList: _onlineDriversList,
-                        ),
-                      ),
-                    ),
+                  // --- BOTTOM-CENTER STATUS CAPSULE (online/offline counts) ---
+                  // Hidden for now — same as Next.js customer map (`hidden` class).
+                  // Uncomment to restore the pill later. StatusCapsule widget kept intact.
+                  // if (_selectedDriver == null)
+                  //   Positioned(
+                  //     bottom:
+                  //         (widget.isDriverMode || _userCurrentLocation == null)
+                  //         ? 90
+                  //         : 16,
+                  //     left: 0,
+                  //     right: 0,
+                  //     child: Center(
+                  //       child: StatusCapsule(
+                  //         isDriverMode: widget.isDriverMode,
+                  //         isDriverLive: _isDriverLive,
+                  //         onlineDriversList: _onlineDriversList,
+                  //       ),
+                  //     ),
+                  //   ),
 
                   // --- DRIVER BOTTOM BAR ---
                   if (widget.isDriverMode)

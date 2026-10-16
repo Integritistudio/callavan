@@ -16,6 +16,7 @@ class SelectedDriverPopupMarker extends Marker {
     required BuildContext context,
     required VoidCallback onClose,
     required Function(String) onCall,
+    required VoidCallback onViewMore,
     required String Function(String?) getCorrectImageUrl,
   }) : super(
           point: LatLng(
@@ -23,7 +24,7 @@ class SelectedDriverPopupMarker extends Marker {
             double.tryParse(driver['longitude']?.toString() ?? '') ?? 0.0,
           ),
           width: 260.0,
-          height: 400.0, // Give plenty of height to avoid overflow centering
+          height: 440.0, // Room for Call + View More without overflow
           alignment: _calculateAlignment(driver, mapController, isDriverMode, context),
           child: Align(
             alignment: Alignment.bottomCenter,
@@ -33,6 +34,7 @@ class SelectedDriverPopupMarker extends Marker {
               isDriverMode: isDriverMode,
               onClose: onClose,
               onCall: onCall,
+              onViewMore: onViewMore,
               getCorrectImageUrl: getCorrectImageUrl,
               showBelow: false, // Always show above the pin
             ),
@@ -67,6 +69,7 @@ class SelectedDriverPopupCard extends StatelessWidget {
   final bool isDriverMode;
   final VoidCallback onClose;
   final Function(String) onCall;
+  final VoidCallback onViewMore;
   final String Function(String?) getCorrectImageUrl;
   final bool showBelow;
 
@@ -77,6 +80,7 @@ class SelectedDriverPopupCard extends StatelessWidget {
     required this.isDriverMode,
     required this.onClose,
     required this.onCall,
+    required this.onViewMore,
     required this.getCorrectImageUrl,
     required this.showBelow,
   });
@@ -302,11 +306,10 @@ class SelectedDriverPopupCard extends StatelessWidget {
                     children: [
                       GestureDetector(
                         onTap: () async {
-                          final String num = driver['phoneNumber'] ?? '';
+                          final String num =
+                              (driver['mobileNumber'] ?? driver['phoneNumber'] ?? '').toString();
                           if (num.isNotEmpty && num != 'N/A') {
                             await Clipboard.setData(ClipboardData(text: num));
-                            // Show standard notification via trigger/scaffold messenger callback if needed
-                            // For simplicity, we can fallback to standard feedback or overlay notifications
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text("Phone number copied to clipboard: $num"),
@@ -320,7 +323,7 @@ class SelectedDriverPopupCard extends StatelessWidget {
                             const Icon(Icons.phone, size: 12, color: Colors.blueAccent),
                             const SizedBox(width: 6),
                             Text(
-                              driver['phoneNumber'] ?? 'N/A',
+                              (driver['mobileNumber'] ?? driver['phoneNumber'] ?? 'N/A').toString(),
                               style: const TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
@@ -390,13 +393,13 @@ class SelectedDriverPopupCard extends StatelessWidget {
                         }).toList(),
                       ),
                       const SizedBox(height: 8),
-                      // Call Button
+                      // Call Button — keep existing full-width green style
                       SizedBox(
                         width: double.infinity,
                         height: 34,
                         child: ElevatedButton.icon(
                           onPressed: () {
-                            onCall(driver['phoneNumber'] ?? '');
+                            onCall(driver['mobileNumber'] ?? driver['phoneNumber'] ?? '');
                           },
                           icon: const Icon(Icons.call, color: Colors.white, size: 14),
                           label: const Text(
@@ -412,6 +415,31 @@ class SelectedDriverPopupCard extends StatelessWidget {
                             elevation: 0,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(6),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      // View More — matches Next.js outlined button under Call
+                      SizedBox(
+                        width: double.infinity,
+                        height: 34,
+                        child: OutlinedButton(
+                          onPressed: onViewMore,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF1F2937),
+                            side: const BorderSide(color: Color(0xFFE5E7EB)),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                          ),
+                          child: const Text(
+                            'View More',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                              color: Color(0xFF1F2937),
                             ),
                           ),
                         ),
