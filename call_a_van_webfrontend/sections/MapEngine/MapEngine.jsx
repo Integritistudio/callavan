@@ -682,7 +682,7 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
     <div className={`flex flex-col w-full max-w-[100vw] overflow-x-hidden font-sans ${isContentPage ? 'min-h-screen' : 'h-[100dvh] max-h-[100dvh] sm:h-screen sm:max-h-screen overflow-hidden'}`}>
       
       {/* ── HEADER (fixed shell; map scrolls underneath) ── */}
-      <header className="flex-shrink-0 w-full max-w-full overflow-hidden flex flex-col bg-[#0b51c1] px-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 box-border h-[calc(122px+env(safe-area-inset-top,0px))] sm:px-8 sm:pt-5 sm:pb-4 sm:h-[138px] md:px-10 md:h-[148px]">
+      <header className="flex-shrink-0 w-full max-w-full overflow-hidden flex flex-col bg-[#0b51c1] px-3 pt-[max(0.875rem,env(safe-area-inset-top))] pb-3.5 box-border h-[calc(136px+env(safe-area-inset-top,0px))] sm:px-8 sm:pt-5 sm:pb-4 sm:h-[138px] md:px-10 md:h-[148px]">
         {/* Top Nav Line */}
         <div className="flex justify-between items-center w-full min-w-0 gap-2 sm:gap-3">
           {/* Left Logo */}
@@ -695,7 +695,7 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
           </a>
 
           {/* Right Actions */}
-          <div className="flex items-center gap-1.5 sm:gap-4 md:gap-6 shrink-0 min-w-0">
+          <div className="flex items-center gap-2.5 sm:gap-4 md:gap-6 shrink-0 min-w-0">
             {jwtToken ? (
               <>
                 <button onClick={() => {
@@ -720,14 +720,14 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
                 Driver Login
               </button>
             )}
-            <button onClick={() => setShowHamburger(true)} className="text-white hover:opacity-75 transition-opacity cursor-pointer p-0.5 shrink-0">
+            <button onClick={() => setShowHamburger(true)} className="text-white hover:opacity-75 transition-opacity cursor-pointer p-1.5 -mr-0.5 shrink-0">
               <svg className="w-7 h-7 sm:w-8 sm:h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
             </button>
           </div>
         </div>
 
         {/* Center Title Section */}
-        <div className="flex-1 flex flex-col items-center justify-end text-center min-w-0 w-full max-w-full overflow-hidden px-1 sm:px-4">
+        <div className="flex-1 flex flex-col items-center justify-end text-center min-w-0 w-full max-w-full overflow-hidden px-1 sm:px-4 pt-1.5 sm:pt-0">
           <h1
             className={`font-manrope font-semibold text-white text-center tracking-tight leading-tight max-w-full ${
               isLoggedInDriver
