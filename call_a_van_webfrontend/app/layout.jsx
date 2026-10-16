@@ -3,6 +3,7 @@
 
 import './globals.css';
 import { Manrope } from 'next/font/google';
+import { BRAND_NAME } from '@/constants/brand';
 
 const manrope = Manrope({
   subsets: ['latin'],
@@ -11,8 +12,8 @@ const manrope = Manrope({
 });
 
 const SITE_URL = 'https://www.callavan.live';
-const SITE_NAME = 'CallAVAN';
-const SITE_TITLE = 'Callavan.live | Nearby Van Drivers. Live on Map';
+const SITE_NAME = BRAND_NAME;
+const SITE_TITLE = `${BRAND_NAME} | Nearby Van Drivers. Live on Map`;
 const SITE_DESCRIPTION = 'Need a van fast? See nearby drivers live and call direct.';
 
 export const metadata = {
@@ -31,7 +32,7 @@ export const metadata = {
     'van drivers',
     'local van',
     'call a van',
-    'CallAVAN',
+    BRAND_NAME,
     'live drivers',
     'man with a van',
     'same day van',
@@ -58,7 +59,7 @@ export const metadata = {
         url: '/og-image.jpg',
         width: 1536,
         height: 1024,
-        alt: 'CallAVAN — nearby van drivers live on the map',
+        alt: `${BRAND_NAME} — nearby van drivers live on the map`,
         type: 'image/jpeg',
       },
     ],

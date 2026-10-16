@@ -8,11 +8,11 @@ const driverFaqs = [
   },
   {
     q: "Do I pay commission?",
-    a: "No. Callavan.live does not take commission on jobs.\nWhat you earn is yours."
+    a: "No. callAVAN.live does not take commission on jobs.\nWhat you earn is yours."
   },
   {
-    q: "How does Callavan.live benefit me?",
-    a: "Callavan.live helps you:\n• Get more calls without chasing leads\n• Fill gaps in your day\n• Pick up quick local jobs\nIt’s designed to work alongside what you already do."
+    q: "How does callAVAN.live benefit me?",
+    a: "callAVAN.live helps you:\n• Get more calls without chasing leads\n• Fill gaps in your day\n• Pick up quick local jobs\nIt’s designed to work alongside what you already do."
   },
   {
     q: "Do I need to stay on the app all day?",
@@ -31,8 +31,8 @@ const driverFaqs = [
     a: "Simple:\n• Stay live\n• Be in active areas\n• Answer calls quickly\nDrivers who stay available tend to get the most work."
   },
   {
-    q: "Can I use Callavan.live alongside my current work?",
-    a: "Yes — that’s exactly how it’s designed. Callavan.live is an extra source of jobs, not a replacement.\n\nUse it properly, and it pays off\nCallavan.live works best when you treat it as part of how you operate, not something you check occasionally.\n\nThe drivers who get the most out of it are the ones who stay switched on. They go live when they’re available, position themselves where demand already exists, and take calls when they come in. They don’t wait around hoping for work — they put themselves in a position to pick it up.\n\nIt’s not about replacing what you already do. It’s about adding to it. Filling gaps in your day. Turning short windows of availability into paid jobs. Picking up work that’s already happening around you without going out your way.\n\nUsed properly, it becomes simple. You go live, you stay available, and you give yourself more chances to earn.\n\nDo that consistently, and it starts to compound. More visibility leads to more calls. More calls lead to more jobs. More jobs mean better use of your time on the road.\n\nCallavan.live isn’t there to complicate things. It’s there to make getting work quicker, easier, and more efficient."
+    q: "Can I use callAVAN.live alongside my current work?",
+    a: "Yes — that’s exactly how it’s designed. callAVAN.live is an extra source of jobs, not a replacement.\n\nUse it properly, and it pays off\ncallAVAN.live works best when you treat it as part of how you operate, not something you check occasionally.\n\nThe drivers who get the most out of it are the ones who stay switched on. They go live when they’re available, position themselves where demand already exists, and take calls when they come in. They don’t wait around hoping for work — they put themselves in a position to pick it up.\n\nIt’s not about replacing what you already do. It’s about adding to it. Filling gaps in your day. Turning short windows of availability into paid jobs. Picking up work that’s already happening around you without going out your way.\n\nUsed properly, it becomes simple. You go live, you stay available, and you give yourself more chances to earn.\n\nDo that consistently, and it starts to compound. More visibility leads to more calls. More calls lead to more jobs. More jobs mean better use of your time on the road.\n\ncallAVAN.live isn’t there to complicate things. It’s there to make getting work quicker, easier, and more efficient."
   }
 ];
 

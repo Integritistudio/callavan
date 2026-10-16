@@ -320,6 +320,7 @@ class CallAVanApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return const MaterialApp(
       debugShowCheckedModeBanner: false,
+      title: 'callAVAN.live',
       home: WelcomeScreen(),
     );
   }

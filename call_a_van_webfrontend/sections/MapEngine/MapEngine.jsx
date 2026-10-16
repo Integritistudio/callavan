@@ -689,7 +689,7 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
           <a href="/" className="inline-block cursor-pointer shrink-0 min-w-0">
             <img 
               src="https://cdn.prod.website-files.com/699f24e36021db019f687184/69d5648b03176e73b702b52f_callvan1.png" 
-              alt="Call-A-Van.live" 
+              alt="callAVAN.live" 
               className="h-8 sm:h-9 md:h-10 max-w-[140px] sm:max-w-none object-contain object-left hover:opacity-90 transition-opacity block"
             />
           </a>
@@ -1152,7 +1152,7 @@ export default function MapEngine({ isDriverMode, initialToken, initialDriver, i
             <div className="bg-[#0b51c1] px-4 py-3.5 flex justify-between items-center">
               <img 
                 src="https://cdn.prod.website-files.com/699f24e36021db019f687184/69d5648b03176e73b702b52f_callvan1.png" 
-                alt="Call-A-Van.live" 
+                alt="callAVAN.live" 
                 style={{ height: '26px' }}
                 className="object-contain"
               />

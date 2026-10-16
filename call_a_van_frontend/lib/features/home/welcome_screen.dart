@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../core/app_colors.dart';
+import '../../core/brand.dart';
 import 'home_screen.dart';
 
 class WelcomeScreen extends StatefulWidget {
@@ -126,9 +127,9 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              const Text(
-                "Welcome to Call-A-Van",
-                style: TextStyle(
+              Text(
+                'Welcome to $brandName',
+                style: const TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
@@ -180,9 +181,9 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               ),
               const Spacer(),
               // --- FOOTER NOTE ---
-              const Text(
-                "Call-A-Van © 2026. All rights reserved.",
-                style: TextStyle(
+              Text(
+                '$brandName © 2026. All rights reserved.',
+                style: const TextStyle(
                   fontSize: 11,
                   color: Colors.white60,
                   fontWeight: FontWeight.w600,

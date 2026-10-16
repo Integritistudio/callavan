@@ -4,12 +4,12 @@ export default function DeleteAccountContent() {
   return (
     <div className="w-full relative z-[1000] flex justify-center p-4 pt-10 pb-16 pointer-events-auto">
       <div className="bg-white w-full max-w-[600px] rounded-2xl shadow-2xl p-6 md:p-8 animate-fade-in h-fit border border-gray-100">
-        <p className="text-[13px] font-medium text-[#0b51c1] mb-2">Call A Van / Callavan.live · Integriti Studio</p>
+        <p className="text-[13px] font-medium text-[#0b51c1] mb-2">callAVAN.live · Integriti Studio</p>
         <h1 className="text-[28px] font-bold text-[#003366] tracking-tight uppercase mb-3">
           Delete Account
         </h1>
         <p className="text-gray-600 text-[15px] leading-relaxed mb-6">
-          Use this page to request deletion of your Call A Van driver account and the personal data linked to it.
+          Use this page to request deletion of your callAVAN.live driver account and the personal data linked to it.
           Customer / guest mode does not create an account.
         </p>
 
@@ -72,7 +72,7 @@ export default function DeleteAccountContent() {
 
         <h2 className="text-[16px] font-bold text-gray-900 mb-3">Customers without an account</h2>
         <p className="text-gray-600 text-[15px] leading-relaxed mb-6">
-          If you only used Call A Van as a customer / guest, you do not have a registered account.
+          If you only used callAVAN.live as a customer / guest, you do not have a registered account.
           You can remove local app data by uninstalling the app and revoking location permission in your device settings.
         </p>
 

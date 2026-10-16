@@ -4,11 +4,11 @@ import { useState } from 'react';
 const driverTermsFaqs = [
   {
     q: "1. Overview",
-    a: "Callavan.live is a platform that connects independent drivers with users seeking transport services.\nWe do not provide transport services ourselves — we simply enable direct contact between users and drivers.\nBy registering as a driver on Callavan.live, you agree to operate as an independent service provider."
+    a: "callAVAN.live is a platform that connects independent drivers with users seeking transport services.\nWe do not provide transport services ourselves — we simply enable direct contact between users and drivers.\nBy registering as a driver on callAVAN.live, you agree to operate as an independent service provider."
   },
   {
     q: "2. Driver Status",
-    a: "• You are not an employee, partner, or agent of Callavan.live\n• You operate as a fully independent driver\n• You are responsible for all services you provide, including:\n  • Pricing\n  • Availability\n  • Communication with customers\n  • Completion of jobs"
+    a: "• You are not an employee, partner, or agent of callAVAN.live\n• You operate as a fully independent driver\n• You are responsible for all services you provide, including:\n  • Pricing\n  • Availability\n  • Communication with customers\n  • Completion of jobs"
   },
   {
     q: "3. Driver Responsibilities",
@@ -20,11 +20,11 @@ const driverTermsFaqs = [
   },
   {
     q: "5. Payments & Jobs",
-    a: "• Callavan.live does not handle payments\n• All payments are agreed directly between you and the customer\n• We are not involved in:\n  • Pricing disputes\n  • Job outcomes\n  • Payment collection"
+    a: "• callAVAN.live does not handle payments\n• All payments are agreed directly between you and the customer\n• We are not involved in:\n  • Pricing disputes\n  • Job outcomes\n  • Payment collection"
   },
   {
     q: "6. Liability",
-    a: "• Callavan.live is not responsible for:\n  • Any work carried out by drivers\n  • Damage, loss, or delays\n  • Disputes between drivers and customers\n• You accept full responsibility for:\n  • Your services\n  • Your vehicle\n  • Your conduct"
+    a: "• callAVAN.live is not responsible for:\n  • Any work carried out by drivers\n  • Damage, loss, or delays\n  • Disputes between drivers and customers\n• You accept full responsibility for:\n  • Your services\n  • Your vehicle\n  • Your conduct"
   },
   {
     q: "7. Account & Access",
@@ -36,7 +36,7 @@ const driverTermsFaqs = [
   },
   {
     q: "9. Fees (If Applicable)",
-    a: "• Callavan.live may introduce subscription fees\n• Any fees will be clearly communicated in advance\n• Continued use of the platform indicates acceptance of any updated pricing"
+    a: "• callAVAN.live may introduce subscription fees\n• Any fees will be clearly communicated in advance\n• Continued use of the platform indicates acceptance of any updated pricing"
   },
   {
     q: "10. Changes to Terms",
@@ -44,7 +44,7 @@ const driverTermsFaqs = [
   },
   {
     q: "11. Acceptance",
-    a: "By registering and using Callavan.live, you confirm that:\n• You understand these terms\n• You agree to operate as an independent driver\n• You accept full responsibility for your services\n\n“You keep full control of your work. We simply connect you to opportunity.”"
+    a: "By registering and using callAVAN.live, you confirm that:\n• You understand these terms\n• You agree to operate as an independent driver\n• You accept full responsibility for your services\n\n“You keep full control of your work. We simply connect you to opportunity.”"
   }
 ];
 

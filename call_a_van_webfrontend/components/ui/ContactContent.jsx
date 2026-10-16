@@ -14,7 +14,7 @@ export default function ContactContent() {
               className="w-[28px] h-[28px]" 
             />
           </div>
-          <h1 className="text-[28px] font-bold text-[#000000] tracking-tight">Callavan Support</h1>
+          <h1 className="text-[28px] font-bold text-[#000000] tracking-tight">callAVAN.live Support</h1>
           <div className="w-10 h-[2px] bg-gray-300 mt-5 rounded-full"></div>
         </div>
 
@@ -25,7 +25,7 @@ export default function ContactContent() {
           </h3>
           
           <a 
-            href="mailto:support@callavan.live?subject=Callavan%20Customer%20Support"
+            href="mailto:support@callavan.live?subject=callAVAN.live%20Customer%20Support"
             className="w-full max-w-[460px] flex items-center justify-between bg-[#f0f0f0] hover:bg-[#e4e4e4] transition-colors rounded-[12px] p-4 cursor-pointer text-decoration-none group shadow-sm"
           >
             <div className="flex items-center gap-3">

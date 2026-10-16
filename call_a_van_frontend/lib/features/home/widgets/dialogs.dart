@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/app_colors.dart';
+import '../../../core/brand.dart';
 
 class HomeDialogs {
   static Future<bool> showLocationPermissionExplanation(
@@ -31,8 +32,8 @@ class HomeDialogs {
           children: [
             Text(
               isHardwareDisabled
-                  ? "Call-A-Van requires your phone's physical GPS hardware to be turned ON to list your vehicle on the live customer map."
-                  : "To connect with active customers nearby and update your van coordinate in real-time, please allow Call-A-Van location permission.",
+                  ? "$brandName requires your phone's physical GPS hardware to be turned ON to list your vehicle on the live customer map."
+                  : "To connect with active customers nearby and update your van coordinate in real-time, please allow $brandName location permission.",
               style: const TextStyle(
                 fontSize: 13,
                 height: 1.4,

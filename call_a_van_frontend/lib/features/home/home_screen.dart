@@ -19,6 +19,7 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/app_colors.dart';
+import '../../core/brand.dart';
 import 'welcome_screen.dart';
 import 'widgets/radar_animation_marker.dart';
 import 'widgets/driver_login_modal.dart';
@@ -1012,7 +1013,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           forceLocationManager: true,
           foregroundNotificationConfig: const ForegroundNotificationConfig(
             notificationText: "You are currently visible to customers.",
-            notificationTitle: "Call A Van - Online 🟢",
+            notificationTitle: "$brandName - Online 🟢",
             enableWakeLock: true,
           ),
         );
@@ -1386,7 +1387,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             context: context,
             builder: (context) => AlertDialog(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              title: const Text("Exit CallAVAN", style: TextStyle(fontWeight: FontWeight.bold)),
+              title: Text("Exit $brandName", style: const TextStyle(fontWeight: FontWeight.bold)),
               content: const Text("Do you really want to exit the app?"),
               actions: [
                 TextButton(
