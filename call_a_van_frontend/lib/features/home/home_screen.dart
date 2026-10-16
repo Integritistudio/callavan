@@ -1630,8 +1630,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                               !_driverCurrentLocation!.latitude.isInfinite &&
                               !_driverCurrentLocation!.longitude.isInfinite)
                             Marker(
-                              width: 90.0,
-                              height: 90.0,
+                              width: 100.0,
+                              height: 100.0,
                               point: _driverCurrentLocation!,
                               child: const LiveRadarMarker(
                                 isOrange: false,

@@ -1,8 +1,8 @@
 /** Shared van marker sizing — offline baseline; live markers slightly larger. */
 export const VAN_ICON_SIZE = 48;
 export const VAN_SVG_SIZE = 24;
-/** Live vans are just a little bigger than offline grey vans */
-export const LIVE_MARKER_SCALE_BOOST = 1.08;
+/** Live vans ~15% larger than offline grey vans (easier to spot as available). */
+export const LIVE_MARKER_SCALE_BOOST = 1.15;
 export const VAN_BORDER = '2.5px solid white';
 export const VAN_SHADOW = '0 3px 8px rgba(0,0,0,0.3)';
 /**
