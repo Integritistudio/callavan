@@ -1577,9 +1577,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         keepBuffer: 3,
                         panBuffer: 1,
                         tileProvider: NetworkTileProvider(
-                          headers: {'User-Agent': 'com.example.call_a_van'},
+                          headers: {'User-Agent': 'com.callavan.live'},
                         ),
-                        userAgentPackageName: 'com.example.call_a_van',
+                        userAgentPackageName: 'com.callavan.live',
                         // --- PER-TILE SHIMMER: replaces grey/black patches with a pulsing skeleton ---
                         tileBuilder: (context, tileWidget, tile) {
                           return AnimatedSwitcher(

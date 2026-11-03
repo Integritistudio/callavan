@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.integritistudio.callavan"
+    namespace = "com.callavan.live"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -20,7 +20,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.integritistudio.callavan"
+        applicationId = "com.callavan.live"
 
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
