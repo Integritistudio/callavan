@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../../../core/app_colors.dart';
+import 'dialogs.dart';
 
 class DriverSignupModal extends StatefulWidget {
   final Function(String message, {bool isError}) showNotification;
@@ -32,6 +34,8 @@ class _DriverSignupModalState extends State<DriverSignupModal> {
   // --- STATE VARS ---
   final List<String> _selectedServices = [];
   bool _insuranceConfirmed = false;
+  bool _privacyAccepted = false;
+  late final TapGestureRecognizer _privacyPolicyTap;
 
   // --- PICKED FILE PROPERTIES (BASE64) ---
   String? _profileImageName;
@@ -43,7 +47,15 @@ class _DriverSignupModalState extends State<DriverSignupModal> {
   bool _isPasswordVisible = false;
 
   @override
+  void initState() {
+    super.initState();
+    _privacyPolicyTap = TapGestureRecognizer()
+      ..onTap = () => HomeDialogs.showPrivacyPolicy(context);
+  }
+
+  @override
   void dispose() {
+    _privacyPolicyTap.dispose();
     _signUpNameController.dispose();
     _signUpMobileController.dispose();
     _signUpEmailController.dispose();
@@ -118,6 +130,14 @@ class _DriverSignupModalState extends State<DriverSignupModal> {
     if (!_insuranceConfirmed) {
       widget.showNotification(
         "You must confirm you are fully insured and operating legally.",
+        isError: true,
+      );
+      return;
+    }
+
+    if (!_privacyAccepted) {
+      widget.showNotification(
+        "You must agree to the Privacy Policy before signing up.",
         isError: true,
       );
       return;
@@ -372,6 +392,7 @@ class _DriverSignupModalState extends State<DriverSignupModal> {
         _signUpEmailController.text.trim().isNotEmpty &&
         _signUpPasswordController.text.trim().isNotEmpty &&
         _insuranceConfirmed &&
+        _privacyAccepted &&
         _profileImageBase64 != null &&
         _vanImageBase64 != null;
 
@@ -527,7 +548,55 @@ class _DriverSignupModalState extends State<DriverSignupModal> {
                 onChoose: () => _pickImage(false),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 8),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: Checkbox(
+                      value: _privacyAccepted,
+                      activeColor: AppColors.primaryBlue,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      onChanged: (value) {
+                        setState(() => _privacyAccepted = value ?? false);
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text.rich(
+                        TextSpan(
+                          style: const TextStyle(
+                            fontSize: 12,
+                            height: 1.4,
+                            color: Colors.black87,
+                          ),
+                          children: [
+                            const TextSpan(
+                              text: "By signing up, I agree to the ",
+                            ),
+                            TextSpan(
+                              text: "Privacy Policy",
+                              style: const TextStyle(
+                                color: AppColors.primaryBlue,
+                                fontWeight: FontWeight.bold,
+                                decoration: TextDecoration.underline,
+                              ),
+                              recognizer: _privacyPolicyTap,
+                            ),
+                            const TextSpan(text: "."),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: (isFormValid && !_isSubmitting)
                     ? () => _submitSignup(context)
