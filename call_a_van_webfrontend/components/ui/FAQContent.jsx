@@ -1,14 +1,15 @@
 'use client';
+import { BRAND_NAME } from '@/constants/brand';
 import { useState } from 'react';
 
 const faqs = [
   {
-    q: "How callAVAN.live Works",
-    a: "callAVAN.live shows you available drivers near your location in real time. Just open the map, find a driver, and call them directly — no waiting, no middleman."
+    q: `How ${BRAND_NAME} Works`,
+    a: `${BRAND_NAME} shows you available drivers near your location in real time. Just open the map, find a driver, and call them directly — no waiting, no middleman.`
   },
   {
     q: "How quickly can I get a van?",
-    a: "If drivers are live near you, you can get connected within minutes. callAVAN.live is designed for speed — perfect for urgent jobs, last-minute moves, or quick collections."
+    a: `If drivers are live near you, you can get connected within minutes. ${BRAND_NAME} is designed for speed — perfect for urgent jobs, last-minute moves, or quick collections.`
   },
   {
     q: "Who sets the price?",
@@ -16,15 +17,15 @@ const faqs = [
   },
   {
     q: "Do I need to create an account?",
-    a: "No — you can use callAVAN.live straight away. Just open the map and call a driver."
+    a: `No — you can use ${BRAND_NAME} straight away. Just open the map and call a driver.`
   },
   {
-    q: "Is callAVAN.live responsible for the job?",
-    a: "No. callAVAN.live connects you with available drivers, but the service is provided directly by the driver."
+    q: `Is ${BRAND_NAME} responsible for the job?`,
+    a: `No. ${BRAND_NAME} connects you with available drivers, but the service is provided directly by the driver.`
   },
   {
-    q: "Why use callAVAN.live instead of Gumtree or Facebook?",
-    a: "callAVAN.live shows you who is actually available right now, based on your location. No messaging back and forth — just find a driver and call instantly."
+    q: `Why use ${BRAND_NAME} instead of Gumtree or Facebook?`,
+    a: `${BRAND_NAME} shows you who is actually available right now, based on your location. No messaging back and forth — just find a driver and call instantly.`
   }
 ];
 

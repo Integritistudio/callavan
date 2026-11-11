@@ -305,6 +305,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'core/brand.dart';
 import 'features/home/welcome_screen.dart';
 
 void main() async {
@@ -320,7 +321,7 @@ class CallAVanApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return const MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'callAVAN.live',
+      title: brandName,
       home: WelcomeScreen(),
     );
   }

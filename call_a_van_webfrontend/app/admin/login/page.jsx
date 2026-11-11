@@ -1,4 +1,5 @@
 'use client';
+import { BRAND_NAME } from '@/constants/brand';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -51,7 +52,7 @@ export default function LoginPage() {
         <div className="bg-[#0b51c1] px-8 py-10 text-center flex flex-col items-center justify-center">
           <img 
             src="https://cdn.prod.website-files.com/699f24e36021db019f687184/69d5648b03176e73b702b52f_callvan1.png" 
-            alt="callAVAN.live Logo" 
+            alt={`${BRAND_NAME} Logo`} 
             className="h-10 object-contain mb-4"
           />
           <h2 className="text-white text-xl font-bold tracking-tight">Admin Portal Login</h2>

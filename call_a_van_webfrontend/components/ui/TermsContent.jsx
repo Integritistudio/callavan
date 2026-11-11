@@ -1,22 +1,23 @@
 'use client';
+import { BRAND_NAME } from '@/constants/brand';
 import { useState } from 'react';
 
 const termsFaqs = [
   {
     q: "1. Nature of Service",
-    a: "callAVAN.live does not provide transport, removal, or delivery services.\nWe act solely as a platform that allows users to connect directly with independent drivers."
+    a: `${BRAND_NAME} does not provide transport, removal, or delivery services.\nWe act solely as a platform that allows users to connect directly with independent drivers.`
   },
   {
     q: "2. Independent Drivers",
-    a: "All drivers on callAVAN.live operate independently.\nDrivers are responsible for:\n• Their services\n• Pricing\n• Availability\n• Insurance and licensing\n• Communication with customers\n\ncallAVAN.live does not employ or control drivers."
+    a: `All drivers on ${BRAND_NAME} operate independently.\nDrivers are responsible for:\n• Their services\n• Pricing\n• Availability\n• Insurance and licensing\n• Communication with customers\n\n${BRAND_NAME} does not employ or control drivers.`
   },
   {
     q: "3. User Responsibility",
-    a: "Users engage drivers at their own discretion.\ncallAVAN.live is not responsible for:\n• Service quality\n• Pricing disputes\n• Delays or cancellations\n• Damage, loss, or injury"
+    a: `Users engage drivers at their own discretion.\n${BRAND_NAME} is not responsible for:\n• Service quality\n• Pricing disputes\n• Delays or cancellations\n• Damage, loss, or injury`
   },
   {
     q: "4. No Guarantees",
-    a: "callAVAN.live does not guarantee:\n• Driver availability\n• Response times\n• Service outcomes"
+    a: `${BRAND_NAME} does not guarantee:\n• Driver availability\n• Response times\n• Service outcomes`
   },
   {
     q: "5. Platform Use",
@@ -24,7 +25,7 @@ const termsFaqs = [
   },
   {
     q: "6. Liability",
-    a: "To the fullest extent permitted by law, callAVAN.live is not liable for any loss or damage resulting from use of the platform."
+    a: `To the fullest extent permitted by law, ${BRAND_NAME} is not liable for any loss or damage resulting from use of the platform.`
   },
   {
     q: "7. Updates",
@@ -43,7 +44,7 @@ export default function TermsContent() {
     <div className="w-full relative z-[1000] flex justify-center p-4 pt-10 pb-16 pointer-events-auto">
       <div className="bg-white w-full max-w-[600px] rounded-2xl shadow-2xl p-6 md:p-8 animate-fade-in h-fit border border-gray-100">
         <h1 className="text-[28px] font-bold text-[#003366] tracking-tight uppercase">TERMS & CONDITIONS</h1>
-        <p className="text-gray-500 text-[14px] mb-6 mt-2 leading-relaxed">callAVAN.live is a platform that connects users with independent drivers. By using this website, you agree to the following terms.</p>
+        <p className="text-gray-500 text-[14px] mb-6 mt-2 leading-relaxed">{BRAND_NAME} is a platform that connects users with independent drivers. By using this website, you agree to the following terms.</p>
         <div className="space-y-1">
           {termsFaqs.map((faq, idx) => {
             const isOpen = openIdx === idx;

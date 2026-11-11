@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { BRAND_NAME } from '@/constants/brand';
 import { useRouter, usePathname } from 'next/navigation';
 import {
   Users,
@@ -134,7 +135,7 @@ export default function AdminShell({
         <div className="px-5 py-5 border-b border-white/10">
           <img
             src="https://cdn.prod.website-files.com/699f24e36021db019f687184/69d5648b03176e73b702b52f_callvan1.png"
-            alt="callAVAN.live"
+            alt={BRAND_NAME}
             className="h-8 object-contain cursor-pointer"
             onClick={() => handleNav(NAV[0])}
           />
@@ -217,7 +218,7 @@ export default function AdminShell({
                     : 'Driver management'}
             </h1>
             <p className="text-xs text-slate-500 hidden sm:block">
-              callAVAN.live operations console
+              {BRAND_NAME} operations console
             </p>
           </div>
         </header>

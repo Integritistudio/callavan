@@ -1,6 +1,6 @@
 {
-    "name": "call_a_van",
-    "short_name": "call_a_van",
+    "name": "CallAVAN.live",
+    "short_name": "CallAVAN.live",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

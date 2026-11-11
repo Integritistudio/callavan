@@ -866,6 +866,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return HomeDialogs.showLocationPermissionExplanation(
       context,
       isHardwareDisabled: isHardwareDisabled,
+      isDriver: widget.isDriverMode,
     );
   }
 

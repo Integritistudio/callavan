@@ -1,6 +1,6 @@
 {
-  "name": "callAVAN.live",
-  "short_name": "callAVAN.live",
+  "name": "CallAVAN.live",
+  "short_name": "CallAVAN.live",
   "description": "Need a van fast? See nearby drivers live and call direct.",
   "start_url": "/",
   "display": "standalone",
