@@ -70,6 +70,12 @@
 	<string>CallAVAN.live needs access to your location to show drivers near you.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>CallAVAN.live needs access to your location to track your booking.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>CallAVAN.live needs access to your photo library so drivers can upload a profile picture and required documents.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>CallAVAN.live needs camera access so drivers can take a profile picture or capture document photos.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>CallAVAN.live needs permission to save photos when required for your driver profile or documents.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>location</string>
